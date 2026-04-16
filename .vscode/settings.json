@@ -1,0 +1,8 @@
+{
+  "dotnet.defaultSolution": "QiWa.framework.slnx",
+  "omnisharp.defaultLaunchSolution": "QiWa.framework.slnx",
+  "files.associations": {
+    "Makefile_*": "makefile"
+  },
+  "extensions.supportNodeGlobalNavigator": true
+}

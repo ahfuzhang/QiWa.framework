@@ -1,0 +1,7 @@
+/build/
+/bin/
+/obj/
+/app_key.txt
+/.claude/
+/doc/prompt.log
+.DS_Store

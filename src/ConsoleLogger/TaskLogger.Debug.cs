@@ -1,0 +1,269 @@
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+namespace QiWa.ConsoleLogger;
+
+// 重载 20 次，以支持 1 个参数到 20 个参数的情况
+
+using System.Runtime.CompilerServices;
+
+public partial class TaskLogger
+{
+    public void Debug(Field field1,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write1(prefix.AsSpan(), ref field1, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write2(prefix.AsSpan(), ref field1, ref field2, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write3(prefix.AsSpan(), ref field1, ref field2, ref field3, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write4(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write5(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write6(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write7(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write8(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write9(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write10(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write11(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write12(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write13(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, ref field13, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write14(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, ref field13, ref field14, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write15(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, ref field13, ref field14, ref field15, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write16(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, ref field13, ref field14, ref field15, ref field16, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16, Field field17,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write17(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, ref field13, ref field14, ref field15, ref field16, ref field17, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16, Field field17, Field field18,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write18(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, ref field13, ref field14, ref field15, ref field16, ref field17, ref field18, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16, Field field17, Field field18, Field field19,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write19(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, ref field13, ref field14, ref field15, ref field16, ref field17, ref field18, ref field19, "debug", file, member, line);
+    }
+
+    public void Debug(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16, Field field17, Field field18, Field field19, Field field20,
+        [CallerFilePath] string file = "",
+        [CallerMemberName] string member = "",
+        [CallerLineNumber] int line = 0)
+    {
+        System.Diagnostics.Debug.Assert(Logger.Instance != null);
+        if (Logger.Instance.Level < LogLevel.Debug)
+        {
+            return;
+        }
+        ThreadLocalLogger.Current.write20(prefix.AsSpan(), ref field1, ref field2, ref field3, ref field4, ref field5, ref field6, ref field7, ref field8, ref field9, ref field10, ref field11, ref field12, ref field13, ref field14, ref field15, ref field16, ref field17, ref field18, ref field19, ref field20, "debug", file, member, line);
+    }
+}

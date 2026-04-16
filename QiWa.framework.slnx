@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="QiWa.framework.csproj" />
+  <Project Path="Tests/QiWa.framework.Tests/QiWa.framework.Tests.csproj" />
+</Solution>
