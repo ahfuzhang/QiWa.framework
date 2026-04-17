@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <!-- 对应“运行 make pack 并没有生成 nuget 文件，请解决”：显式声明 NuGet 元数据和发布文件，绕开异常的 dotnet pack 流程。 -->
+    <id>QiWa.framework</id>
+    <version>$version$</version>
+    <authors>Ahfu Zhang</authors>
+    <description>This is the foundation library for the high-performance microservice framework QiWa(https://github.com/ahfuzhang/QiWa).</description>
+    <tags>dotnet csharp framework microservice</tags>
+    <license type="expression">MIT</license>
+    <readme>README.md</readme>
+    <projectUrl>https://github.com/ahfuzhang/QiWa.framework</projectUrl>
+    <repository type="git" url="https://github.com/ahfuzhang/QiWa.framework" />
+    <dependencies>
+      <group targetFramework="net8.0">
+        <dependency id="Microsoft.Extensions.Logging" version="10.0.6" />
+        <dependency id="OpenTelemetry" version="1.15.0" />
+        <dependency id="OpenTelemetry.Extensions.Hosting" version="1.15.0" />
+        <dependency id="OpenTelemetry.Instrumentation.AspNetCore" version="1.15.0" />
+        <dependency id="OpenTelemetry.Instrumentation.Http" version="1.15.0" />
+        <dependency id="OpenTelemetry.Instrumentation.Process" version="1.15.0-beta.1" />
+        <dependency id="OpenTelemetry.Instrumentation.Runtime" version="1.15.0" />
+        <dependency id="protobuf-net" version="3.2.56" />
+        <dependency id="QiWa.Common" version="0.1.5" />
+        <dependency id="System.CommandLine" version="2.0.0-beta4.22272.1" />
+        <dependency id="ZstdSharp.Port" version="0.8.7" />
+      </group>
+      <group targetFramework="net10.0">
+        <dependency id="Microsoft.Extensions.Logging" version="10.0.6" />
+        <dependency id="OpenTelemetry" version="1.15.0" />
+        <dependency id="OpenTelemetry.Extensions.Hosting" version="1.15.0" />
+        <dependency id="OpenTelemetry.Instrumentation.AspNetCore" version="1.15.0" />
+        <dependency id="OpenTelemetry.Instrumentation.Http" version="1.15.0" />
+        <dependency id="OpenTelemetry.Instrumentation.Process" version="1.15.0-beta.1" />
+        <dependency id="OpenTelemetry.Instrumentation.Runtime" version="1.15.0" />
+        <dependency id="protobuf-net" version="3.2.56" />
+        <dependency id="QiWa.Common" version="0.1.5" />
+        <dependency id="System.CommandLine" version="2.0.0-beta4.22272.1" />
+        <dependency id="ZstdSharp.Port" version="0.8.7" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="README.md" target="" />
+    <file src="bin/Release/net8.0/QiWa.framework.dll" target="lib/net8.0" />
+    <file src="bin/Release/net8.0/QiWa.framework.xml" target="lib/net8.0" />
+    <file src="bin/Release/net10.0/QiWa.framework.dll" target="lib/net10.0" />
+    <file src="bin/Release/net10.0/QiWa.framework.xml" target="lib/net10.0" />
+  </files>
+</package>

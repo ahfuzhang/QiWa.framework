@@ -1,9 +1,20 @@
 
 COVERAGE_RAW    = build/coverage-raw
 COVERAGE_REPORT = build/coverage-report
+PACKAGE_ID      = QiWa.framework
+PACKAGE_VERSION ?= 0.1.0
+PACKAGE_OUTPUT  = bin/Release
+BUILD_CONFIGURATION ?= Debug
+NUGET_PACK_ARGS ?=
 
+# 对应“运行 make pack 并没有生成 nuget 文件，请解决”：这些命令目标不能和同名目录冲突，否则 make 会跳过真正的构建与打包动作。
+.PHONY: build new test coverage pack push
+
+# make build BUILD_CONFIGURATION=release
 build:
-	dotnet build QiWa.framework.csproj --verbosity minimal
+	# 对应“运行 make pack 并没有生成 nuget 文件，请解决”：逐个目标框架构建，绕开当前多目标 dotnet build 不收尾的问题。
+	dotnet build QiWa.framework.csproj -c $(BUILD_CONFIGURATION) -f net8.0 --verbosity minimal
+	dotnet build QiWa.framework.csproj -c $(BUILD_CONFIGURATION) -f net10.0 --verbosity minimal
 
 new:
 	dotnet new sln -n "QiWa.framework"
@@ -27,10 +38,16 @@ coverage:
 	@echo "Coverage report: $(COVERAGE_REPORT)/index.html"
 
 pack:
-	dotnet pack -c Release -p:PackageVersion=0.1.0
+	# 对应“运行 make pack 并没有生成 nuget 文件，请解决”：改为先构建 Release，再用显式 nuspec 稳定生成 NuGet 包。
+	$(MAKE) build BUILD_CONFIGURATION=Release
+	nuget pack $(PACKAGE_ID).nuspec \
+		-Version $(PACKAGE_VERSION) \
+		-OutputDirectory $(PACKAGE_OUTPUT) \
+		-NoPackageAnalysis \
+		$(NUGET_PACK_ARGS)
 
 # make push KEY=$(cat app_key.txt)
 push:
-	dotnet nuget push bin/Release/QiWa.framework.0.1.0.nupkg \
+	dotnet nuget push $(PACKAGE_OUTPUT)/$(PACKAGE_ID).$(PACKAGE_VERSION).nupkg \
 		--api-key $(KEY) \
 		--source https://api.nuget.org/v3/index.json
