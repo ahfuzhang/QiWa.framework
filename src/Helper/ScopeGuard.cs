@@ -8,10 +8,9 @@ namespace QiWa.Helper;
 /// <example>
 /// ```csharp
 /// // 退出作用域时，自动调用 Cleanup() 函数。本质上是 try...finally 的另一个写法
-/// using (var _ = new ScopeGuard(() => Cleanup(obj))){
-///     Step1();
-///     Step2();
-/// }
+/// using var _ = new ScopeGuard(() => {
+///   someObject.Dispose();
+/// });
 /// ```
 /// </example>
 public struct ScopeGuard : IDisposable

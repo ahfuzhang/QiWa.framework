@@ -115,7 +115,8 @@ public class GzipCompressor
         var initialSize = compressed.Length >= 18
             ? (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(compressed[^4..])
             : 0;
-        if (initialSize / compressed.Length > MaxDecompressRatio){
+        if (initialSize / compressed.Length > MaxDecompressRatio)
+        {
             return (default, Error.WithLoc(code: 3, message: $"GZip bomb detected: decompressed size exceeds {MaxDecompressRatio}x compressed size"));
         }
         stream.Reset(Math.Max(initialSize, 256));

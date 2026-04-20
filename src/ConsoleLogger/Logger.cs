@@ -26,6 +26,7 @@ public class Logger
     const int defaultLogBufferSize = 1024 * 128;  // 默认的日志内存空间
     const int minLogBufferSize = 1024 * 4;  // 最小的日志内存空间
     const int defaultFlushIntervalMs = 1000;  // 默认的日志 flush 时间
+    const int MaxPooledObjectCount = 10000 * 16;  // 假设 16 核，每核最大并发为 10000 / s
 
     internal int FlushIntervalMs = defaultFlushIntervalMs;  // 输出日志的间隔时间
     internal LogLevel Level = LogLevel.Info;  // 全局的日志级别
@@ -119,7 +120,8 @@ public class Logger
             throw new ArgumentException("Invalid jsonlineUrl.", nameof(jsonlineUrl));
         }
         LoggerToken = new CancellationTokenSource();
-        pool = new DefaultObjectPool<TaskLogger>(new BufferPolicy());
+        pool = new DefaultObjectPool<TaskLogger>(new BufferPolicy(),
+                maximumRetained: MaxPooledObjectCount);
     }
 
     /// <summary>

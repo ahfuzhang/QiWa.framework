@@ -21,7 +21,7 @@
         <dependency id="OpenTelemetry.Instrumentation.Process" version="1.15.0-beta.1" />
         <dependency id="OpenTelemetry.Instrumentation.Runtime" version="1.15.0" />
         <dependency id="protobuf-net" version="3.2.56" />
-        <dependency id="QiWa.Common" version="0.1.5" />
+        <dependency id="QiWa.Common" version="0.1.6" />
         <dependency id="System.CommandLine" version="2.0.0-beta4.22272.1" />
         <dependency id="ZstdSharp.Port" version="0.8.7" />
       </group>
@@ -34,7 +34,7 @@
         <dependency id="OpenTelemetry.Instrumentation.Process" version="1.15.0-beta.1" />
         <dependency id="OpenTelemetry.Instrumentation.Runtime" version="1.15.0" />
         <dependency id="protobuf-net" version="3.2.56" />
-        <dependency id="QiWa.Common" version="0.1.5" />
+        <dependency id="QiWa.Common" version="0.1.6" />
         <dependency id="System.CommandLine" version="2.0.0-beta4.22272.1" />
         <dependency id="ZstdSharp.Port" version="0.8.7" />
       </group>

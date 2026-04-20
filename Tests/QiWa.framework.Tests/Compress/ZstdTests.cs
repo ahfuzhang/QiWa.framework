@@ -1,3 +1,4 @@
+using QiWa.Common;
 using QiWa.Compress;
 using Xunit;
 
@@ -214,6 +215,382 @@ public class ZstdTests
 
         Assert.False(success);
         Assert.Equal(0, written);
+    }
+
+    // ---- Tests for Compress(ref RentedBuffer dst, ReadOnlySpan<byte> input) overload ----
+
+    /// <summary>
+    /// 意图：验证 Compress(ref RentedBuffer, ...) 对普通字符串压缩后可成功解压，且数据完整。
+    /// </summary>
+    [Fact]
+    public void TestZstd_CompressRef_NormalString_RoundTrip()
+    {
+        var input = System.Text.Encoding.UTF8.GetBytes("Hello, World! This is a test of Zstd ref overload.");
+        var dst = new RentedBuffer(0);
+        try
+        {
+            var err = ZstdCompressor.Compress(ref dst, input);
+            Assert.False(err.Err(), $"Compress error: {err.Message}");
+            Assert.True(dst.Length > 0, "Compressed length should be > 0");
+
+            var (uncompressed, errUn) = ZstdCompressor.Uncompress(dst.AsSpan());
+            Assert.False(errUn.Err(), $"Uncompress error: {errUn.Message}");
+            Assert.True(input.SequenceEqual(uncompressed.AsSpan().ToArray()), "Roundtrip data mismatch");
+            uncompressed.Dispose();
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：验证空输入时仍产生非空的 zstd 空帧（约 9 字节），压缩不报错。
+    /// 注释中已说明：当 input 的长度为 0 时，仍然也会出现 9 字节的 zstd 空帧。
+    /// </summary>
+    [Fact]
+    public void TestZstd_CompressRef_EmptyInput_ProducesNonEmptyFrame()
+    {
+        var dst = new RentedBuffer(0);
+        try
+        {
+            var err = ZstdCompressor.Compress(ref dst, Array.Empty<byte>());
+            Assert.False(err.Err(), $"Compress empty input error: {err.Message}");
+            Assert.True(dst.Length > 0, "Zstd empty input should produce a non-empty empty frame (~9 bytes)");
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：验证 ref 重载压缩 1MB 随机数据后可完整解压，覆盖大数据场景。
+    /// </summary>
+    [Fact]
+    public void TestZstd_CompressRef_LargeData_RoundTrip()
+    {
+        var random = new Random(123);
+        var largeData = new byte[1024 * 1024];
+        random.NextBytes(largeData);
+
+        var dst = new RentedBuffer(0);
+        try
+        {
+            var err = ZstdCompressor.Compress(ref dst, largeData);
+            Assert.False(err.Err(), $"Compress large data error: {err.Message}");
+            Assert.True(dst.Length > 0);
+
+            var (uncompressed, errUn) = ZstdCompressor.Uncompress(dst.AsSpan());
+            Assert.False(errUn.Err(), $"Uncompress large data error: {errUn.Message}");
+            Assert.Equal(largeData.Length, uncompressed.Length);
+            Assert.True(largeData.SequenceEqual(uncompressed.AsSpan().ToArray()), "Large data roundtrip mismatch");
+            uncompressed.Dispose();
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：验证多次调用 Compress(ref dst, ...) 将数据依次追加在缓冲区中，
+    ///       记录每块的起止偏移后，可从对应偏移量独立解压，数据正确。
+    /// 这覆盖了 dst.Length += written 追加语义。
+    /// </summary>
+    [Fact]
+    public void TestZstd_CompressRef_SequentialAppend_EachChunkDecompressable()
+    {
+        var chunk1 = System.Text.Encoding.UTF8.GetBytes("first chunk: Hello Zstd");
+        var chunk2 = System.Text.Encoding.UTF8.GetBytes("second chunk: appended after first, a bit longer");
+
+        var dst = new RentedBuffer(0);
+        try
+        {
+            // 压缩第一块，记录压缩后偏移
+            var err1 = ZstdCompressor.Compress(ref dst, chunk1);
+            Assert.False(err1.Err(), $"First compress error: {err1.Message}");
+            int endOfChunk1 = dst.Length;
+            Assert.True(endOfChunk1 > 0);
+
+            // 压缩第二块，追加在第一块后
+            var err2 = ZstdCompressor.Compress(ref dst, chunk2);
+            Assert.False(err2.Err(), $"Second compress error: {err2.Message}");
+            int endOfChunk2 = dst.Length;
+            Assert.True(endOfChunk2 > endOfChunk1);
+
+            // 解压第一块并验证
+            var (decomp1, errUn1) = ZstdCompressor.Uncompress(dst.AsSpan()[..endOfChunk1]);
+            Assert.False(errUn1.Err(), $"Decompress chunk1 error: {errUn1.Message}");
+            Assert.True(chunk1.SequenceEqual(decomp1.AsSpan().ToArray()), "Chunk1 data mismatch");
+            decomp1.Dispose();
+
+            // 解压第二块并验证
+            var (decomp2, errUn2) = ZstdCompressor.Uncompress(dst.AsSpan()[endOfChunk1..endOfChunk2]);
+            Assert.False(errUn2.Err(), $"Decompress chunk2 error: {errUn2.Message}");
+            Assert.True(chunk2.SequenceEqual(decomp2.AsSpan().ToArray()), "Chunk2 data mismatch");
+            decomp2.Dispose();
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：验证 Compress(ref RentedBuffer, ...) 在多线程并发下，
+    ///       通过 [ThreadStatic] 独立使用压缩器，不出现数据竞争或错误。
+    /// </summary>
+    [Fact]
+    public void TestZstd_CompressRef_Concurrency()
+    {
+        int threadCount = 8;
+        int iterationsPerThread = 50;
+        var errors = new System.Collections.Concurrent.ConcurrentBag<string>();
+
+        Parallel.For(0, threadCount, i =>
+        {
+            var random = new Random(i * 1009);
+            for (int j = 0; j < iterationsPerThread; j++)
+            {
+                var dst = new RentedBuffer(0);
+                try
+                {
+                    byte[] data = new byte[random.Next(100, 8192)];
+                    random.NextBytes(data);
+
+                    var err = ZstdCompressor.Compress(ref dst, data);
+                    if (err.Err())
+                    {
+                        errors.Add($"Thread {i} Iter {j} Compress Error: {err.Message}");
+                        continue;
+                    }
+
+                    var (uncompressed, errUn) = ZstdCompressor.Uncompress(dst.AsSpan());
+                    if (errUn.Err())
+                    {
+                        errors.Add($"Thread {i} Iter {j} Uncompress Error: {errUn.Message}");
+                    }
+                    else
+                    {
+                        if (!data.SequenceEqual(uncompressed.AsSpan().ToArray()))
+                        {
+                            errors.Add($"Thread {i} Iter {j} Data Mismatch");
+                        }
+                        uncompressed.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Thread {i} Iter {j} Exception: {ex}");
+                }
+                finally
+                {
+                    dst.Dispose();
+                }
+            }
+        });
+
+        Assert.Empty(errors);
+    }
+
+    // ---- Tests for Uncompress(ref RentedBuffer dst, ReadOnlySpan<byte> compressed) overload ----
+
+    /// <summary>
+    /// 意图：验证 Uncompress(ref RentedBuffer, ...) 对正常压缩数据可成功解压，
+    ///       dst.Length 等于原始数据长度，数据内容完整。
+    /// </summary>
+    [Fact]
+    public void TestZstd_UncompressRef_NormalString_RoundTrip()
+    {
+        var input = System.Text.Encoding.UTF8.GetBytes("Hello, World! This is a test of Zstd Uncompress ref overload.");
+        var (compressed, errComp) = ZstdCompressor.Compress(input);
+        Assert.False(errComp.Err(), $"Compress error: {errComp.Message}");
+        var compressedBytes = compressed.AsSpan().ToArray();
+        compressed.Dispose();
+
+        var dst = new RentedBuffer(0);
+        try
+        {
+            var err = ZstdCompressor.Uncompress(ref dst, compressedBytes);
+            Assert.False(err.Err(), $"Uncompress error: {err.Message}");
+            Assert.Equal(input.Length, dst.Length);
+            Assert.True(input.SequenceEqual(dst.AsSpan().ToArray()), "Roundtrip data mismatch");
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：验证解压 zstd 空帧（压缩空输入产生的约 9 字节帧）后 dst.Length = 0，无报错。
+    /// 覆盖 GetDecompressedSize 返回 0、TryUnwrap 写出 0 字节的正常路径。
+    /// </summary>
+    [Fact]
+    public void TestZstd_UncompressRef_EmptyFrame_ProducesEmptyData()
+    {
+        var (compressed, errComp) = ZstdCompressor.Compress(Array.Empty<byte>());
+        Assert.False(errComp.Err(), $"Compress empty error: {errComp.Message}");
+        var compressedBytes = compressed.AsSpan().ToArray();
+        compressed.Dispose();
+        Assert.True(compressedBytes.Length > 0, "zstd empty frame itself should be non-empty (~9 bytes)");
+
+        var dst = new RentedBuffer(0);
+        try
+        {
+            var err = ZstdCompressor.Uncompress(ref dst, compressedBytes);
+            Assert.False(err.Err(), $"Uncompress empty frame error: {err.Message}");
+            Assert.Equal(0, dst.Length);
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：验证 Uncompress ref 重载对 1MB 随机数据解压后数据完整，覆盖大数据场景。
+    /// </summary>
+    [Fact]
+    public void TestZstd_UncompressRef_LargeData_RoundTrip()
+    {
+        var random = new Random(456);
+        var largeData = new byte[1024 * 1024];
+        random.NextBytes(largeData);
+
+        var (compressed, errComp) = ZstdCompressor.Compress(largeData);
+        Assert.False(errComp.Err(), $"Compress error: {errComp.Message}");
+        var compressedBytes = compressed.AsSpan().ToArray();
+        compressed.Dispose();
+
+        var dst = new RentedBuffer(0);
+        try
+        {
+            var err = ZstdCompressor.Uncompress(ref dst, compressedBytes);
+            Assert.False(err.Err(), $"Uncompress large data error: {err.Message}");
+            Assert.Equal(largeData.Length, dst.Length);
+            Assert.True(largeData.SequenceEqual(dst.AsSpan().ToArray()), "Large data roundtrip mismatch");
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：传入无法识别为 zstd 帧的垃圾数据，GetDecompressedSize 抛异常，
+    ///       验证返回 Error code=3，message 含 "GetDecompressedSize fail"。
+    ///       覆盖第一个 catch 分支。
+    /// </summary>
+    [Fact]
+    public void TestZstd_UncompressRef_GarbageData_ReturnsCode3()
+    {
+        var garbage = new byte[] { 0x01, 0x02, 0x03, 0x04 }; // 不是合法 zstd 帧
+        var dst = new RentedBuffer(0);
+        try
+        {
+            var err = ZstdCompressor.Uncompress(ref dst, garbage);
+            Assert.True(err.Err(), "Expected error for garbage input");
+            Assert.Equal(3u, err.Code);
+            Assert.Contains("GetDecompressedSize fail", err.Message);
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：传入头部合法但 body 已被篡改（启用 checksum）的 zstd 数据，
+    ///       GetDecompressedSize 成功，TryUnwrap 因 checksum 校验失败而报错，
+    ///       验证返回 Error code=4，message 含 "decompressor.TryUnwrap fail"。
+    ///       覆盖第二个 catch 或 !success 分支。
+    /// </summary>
+    [Fact]
+    public void TestZstd_UncompressRef_CorruptBody_ReturnsCode4()
+    {
+        // 用带 checksum 的压缩器生成数据，然后篡改 body 中间字节
+        using var compressorWithChecksum = new ZstdSharp.Compressor();
+        compressorWithChecksum.SetParameter(ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_checksumFlag, 1);
+        var src = System.Text.Encoding.UTF8.GetBytes("hello checksum for ref uncompress test");
+        var bound = ZstdSharp.Compressor.GetCompressBound(src.Length);
+        var dstBuf = new byte[bound];
+        compressorWithChecksum.TryWrap(src, dstBuf, out int writtenBytes);
+        var corrupt = dstBuf.Take(writtenBytes).ToArray();
+        if (corrupt.Length > 10)
+        {
+            corrupt[corrupt.Length / 2] ^= 0xFF; // 翻转 body 中间字节，破坏 checksum
+        }
+
+        var dst = new RentedBuffer(0);
+        try
+        {
+            var err = ZstdCompressor.Uncompress(ref dst, corrupt);
+            Assert.True(err.Err(), "Expected error for corrupt zstd data");
+            Assert.Equal(4u, err.Code);
+            Assert.Contains("decompressor.TryUnwrap fail", err.Message);
+        }
+        finally
+        {
+            dst.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 意图：验证 Uncompress(ref RentedBuffer, ...) 在多线程并发下，
+    ///       通过 [ThreadStatic] 独立使用解压器，不出现数据竞争或错误。
+    /// </summary>
+    [Fact]
+    public void TestZstd_UncompressRef_Concurrency()
+    {
+        int threadCount = 8;
+        int iterationsPerThread = 50;
+        var errors = new System.Collections.Concurrent.ConcurrentBag<string>();
+
+        Parallel.For(0, threadCount, i =>
+        {
+            var random = new Random(i * 1013);
+            for (int j = 0; j < iterationsPerThread; j++)
+            {
+                byte[] data = new byte[random.Next(100, 8192)];
+                random.NextBytes(data);
+
+                var (compressed, errComp) = ZstdCompressor.Compress(data);
+                if (errComp.Err())
+                {
+                    errors.Add($"Thread {i} Iter {j} Compress Error: {errComp.Message}");
+                    compressed.Dispose();
+                    continue;
+                }
+                var compressedBytes = compressed.AsSpan().ToArray();
+                compressed.Dispose();
+
+                var dst = new RentedBuffer(0);
+                try
+                {
+                    var err = ZstdCompressor.Uncompress(ref dst, compressedBytes);
+                    if (err.Err())
+                    {
+                        errors.Add($"Thread {i} Iter {j} Uncompress Error: {err.Message}");
+                    }
+                    else if (!data.SequenceEqual(dst.AsSpan().ToArray()))
+                    {
+                        errors.Add($"Thread {i} Iter {j} Data Mismatch");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Thread {i} Iter {j} Exception: {ex}");
+                }
+                finally
+                {
+                    dst.Dispose();
+                }
+            }
+        });
+
+        Assert.Empty(errors);
     }
 
     private static void RunTestCase(TestCase tc)
