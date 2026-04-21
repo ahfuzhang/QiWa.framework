@@ -37,7 +37,7 @@ public partial class ThreadLocalLogger
 #pragma warning restore CS0649
 
     // ThreadLocal
-    private static readonly ThreadLocal<ThreadLocalLogger> _threadLocal =
+    internal static readonly ThreadLocal<ThreadLocalLogger> _threadLocal =
         new ThreadLocal<ThreadLocalLogger>(() => new ThreadLocalLogger(), trackAllValues: true);
     internal static ThreadLocalLogger Current => _threadLocal.Value!;
 
@@ -118,6 +118,23 @@ public partial class ThreadLocalLogger
             await writeLog(wrapper).ConfigureAwait(false);
             wrapper = null;
         });
+    }
+
+    /// <summary>
+    /// 进程退出时，把 buffer 中剩余的日志进行输出
+    /// </summary>
+    internal void Shutdown()
+    {
+        lock (locker)
+        {
+            ref RentedBuffer rented = ref GetBuffer();
+            if (rented.Length == 0)
+            {
+                return;
+            }
+            WriteStdout(rented.AsSpan());
+            rented.Dispose();
+        }
     }
 
     private static readonly System.Net.Http.Headers.MediaTypeHeaderValue mediaType = new MediaTypeHeaderValue("application/json");

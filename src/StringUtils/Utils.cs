@@ -29,7 +29,8 @@ public static class StringUtils
         else if (size.EndsWith("kb")) { multiplier = 1024L; numPart = size[..^2]; }
         else if (size.EndsWith('k')) { multiplier = 1024L; numPart = size[..^1]; }
 
-        if (!long.TryParse(numPart, out long num)){
+        if (!long.TryParse(numPart, out long num))
+        {
             return (0, Error.WithLoc(1, $"Invalid buffer size format: {size}"));
         }
         var result = num * multiplier;

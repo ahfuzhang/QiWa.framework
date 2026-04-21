@@ -27,8 +27,10 @@ public static class NativeWrite
 
     private static void UnixWrite(ReadOnlySpan<byte> data)
     {
-        unsafe {
-            fixed (byte* ptr = data) {
+        unsafe
+        {
+            fixed (byte* ptr = data)
+            {
                 write(1, (IntPtr)ptr, (ulong)data.Length);
             }
         }

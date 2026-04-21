@@ -156,6 +156,11 @@ public class Logger
     public static void Shutdown()
     {
         Debug.Assert(Instance != null);
+        // 遍历所有的 ThreadLocal 对象
+        foreach (ThreadLocalLogger item in ThreadLocalLogger._threadLocal.Values)
+        {
+            item.Shutdown();
+        }
         Instance.Dispose();
     }
 
@@ -194,10 +199,10 @@ public class Logger
         {
             "fatal" => LogLevel.Fatal,
             "error" => LogLevel.Error,
-            "warn"  => LogLevel.Warn,
-            "info"  => LogLevel.Info,
+            "warn" => LogLevel.Warn,
+            "info" => LogLevel.Info,
             "debug" => LogLevel.Debug,
-            _       => LogLevel.Warn
+            _ => LogLevel.Warn
         };
     }
 

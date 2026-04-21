@@ -98,7 +98,7 @@ public static class GlobalExceptionHandler
             Console.Error.WriteLine($"[{DateTimeOffset.UtcNow:u}] Unhandled exception caught from {source}");
             if (exception is null)
             {
-              Console.Error.WriteLine("Exception object was null.");
+                Console.Error.WriteLine("Exception object was null.");
             }
             else
             {

@@ -1,9 +1,9 @@
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace QiWa.KestrelWrap;
 
-using Microsoft.AspNetCore.Http;
-using System.IO;
 using System.Diagnostics;
+using System.IO;
+using Microsoft.AspNetCore.Http;
 using QiWa.Common;
 using QiWa.Compress;
 using QiWa.ConsoleLogger;
@@ -15,7 +15,7 @@ public enum RequestContentType
     Protobuf = 2
 }
 
-public struct Counters
+public class Counters
 {
     public UInt64 HttpRequestTotal;
     public UInt64 HttpBadRequestTotal;
@@ -34,8 +34,10 @@ public abstract class ContextBase
     public TaskLogger? L;
     public RequestContentType ContentType;
 
-    [ThreadStatic]
-    public static Counters Counters;  // todo: 把自己注册到全局
+    // ThreadLocal
+    internal static readonly ThreadLocal<Counters> _threadLocal =
+        new ThreadLocal<Counters>(() => new Counters(), trackAllValues: true);
+    public static Counters Counters => _threadLocal.Value!;
 
     public void Reset()
     {

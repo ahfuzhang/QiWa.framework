@@ -3,12 +3,12 @@
 namespace examples;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.ObjectPool;
 using QiWa.Common;
 using QiWa.ConsoleLogger;
-using Microsoft.Extensions.ObjectPool;
 using QiWa.KestrelWrap;
 
-public struct DemoServerCounters
+public class DemoServerCounters
 {
     public UInt64 PathHelloRequestTotal;
     public UInt64 PathHelloDecodeErrorsTotal;
@@ -23,8 +23,12 @@ public class DemoServer  // 这里是 service 的名字
         maximumRetained: ServerConfig.MaxCocurrentCount
     );
 
-    [ThreadStatic]
-    public static DemoServerCounters Counters;  // todo: 把自己注册到全局
+    //[ThreadStatic]
+    //public static DemoServerCounters Counters;  // todo: 把自己注册到全局
+    // ThreadLocal
+    internal static readonly ThreadLocal<DemoServerCounters> _threadLocal =
+        new ThreadLocal<DemoServerCounters>(() => new DemoServerCounters(), trackAllValues: true);
+    public static DemoServerCounters Counters => _threadLocal.Value!;
 
     public static async Task HandleAsync(HttpContext context)
     {

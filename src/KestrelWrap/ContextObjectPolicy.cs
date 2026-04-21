@@ -1,12 +1,6 @@
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace QiWa.KestrelWrap;
 
-using Microsoft.AspNetCore.Http;
-using System.IO;
-using System.Diagnostics;
-using QiWa.Common;
-using QiWa.Compress;
-using QiWa.ConsoleLogger;
 using Microsoft.Extensions.ObjectPool;
 
 public class ContextObjectPolicy<ContextType>

@@ -22,6 +22,9 @@ new:
 test:
 	dotnet test Tests/QiWa.framework.Tests/QiWa.framework.Tests.csproj --verbosity minimal
 
+fmt:
+	dotnet format QiWa.framework.csproj
+
 coverage:
 	rm -rf $(COVERAGE_RAW) $(COVERAGE_REPORT)
 	dotnet test Tests/QiWa.framework.Tests/QiWa.framework.Tests.csproj \

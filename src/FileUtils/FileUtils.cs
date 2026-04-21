@@ -64,7 +64,7 @@ public static class FileUtils
             if (totalRead != length)
             {
                 rent.Dispose();
-                return (default, Error.WithLoc(code: 3, message: $"not read all:{totalRead}/{length}" ));
+                return (default, Error.WithLoc(code: 3, message: $"not read all:{totalRead}/{length}"));
             }
             return (rent, default);
         }

@@ -48,6 +48,10 @@
     <None Remove="Tests/**" />
     <Content Remove="Tests\**" />
     <Content Remove="Tests/**" />
+    <Compile Remove="examples\**" />
+    <Compile Remove="examples/**" />
+    <Content Remove="examples\**" />
+    <Content Remove="examples/**" />
   </ItemGroup>
 
   <ItemGroup>

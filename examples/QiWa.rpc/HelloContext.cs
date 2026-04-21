@@ -10,6 +10,7 @@ class HelloContext : ContextBase, QiWa.Common.IResettable
     public ReadonlyHelloRequest Request;
     public HelloResponse Response;
 
+#pragma warning disable CS0108
     public void Reset()
     {
         base.Reset();
@@ -17,6 +18,7 @@ class HelloContext : ContextBase, QiWa.Common.IResettable
         Response.Reset();
         //todo: 局部变量的 reset 写在这里
     }
+#pragma warning restore CS0108
 
     public async ValueTask<Error> Run()
     {
