@@ -15,7 +15,7 @@ public enum RequestContentType
     Protobuf = 2
 }
 
-public class Counters
+public class Counters : QiWa.Common.IResettable
 {
     public UInt64 HttpRequestTotal;
     public UInt64 HttpBadRequestTotal;
@@ -24,8 +24,22 @@ public class Counters
     public UInt64 EncodeErrorsTotal;
     public UInt64 SendErrorsTotal;
     public UInt64 HttpNotFoundErrorsTotal;
+
+    public void Reset()
+    {
+        HttpRequestTotal = 0;
+        HttpBadRequestTotal = 0;
+        InitErrorsTotal = 0;
+        ReadRequestErrorsTotal = 0;
+        EncodeErrorsTotal = 0;
+        SendErrorsTotal = 0;
+        HttpNotFoundErrorsTotal = 0;
+    }
 }
 
+/// <summary>
+/// 注意：依赖日志库 ConsoleLogger，必须先初始化日志库
+/// </summary>
 public abstract class ContextBase
 {
     public RentedBuffer RawRequest = new RentedBuffer(ServerConfig.DefaultRequestSize);  // todo: 这个内存可能太大了
@@ -38,6 +52,30 @@ public abstract class ContextBase
     internal static readonly ThreadLocal<Counters> _threadLocal =
         new ThreadLocal<Counters>(() => new Counters(), trackAllValues: true);
     public static Counters Counters => _threadLocal.Value!;
+
+    /// <summary>
+    /// 累加所有线程上的 Counter
+    /// </summary>
+    /// <param name="dst"></param>
+    /// <returns></returns>
+    public static Counters SumCounters(Counters? dst)
+    {
+        if (dst == null)
+        {
+            dst = new Counters();
+        }
+        foreach (Counters c in _threadLocal.Values)
+        {
+            dst.HttpRequestTotal += Interlocked.Read(ref c.HttpRequestTotal);
+            dst.HttpBadRequestTotal += Interlocked.Read(ref c.HttpBadRequestTotal);
+            dst.InitErrorsTotal += Interlocked.Read(ref c.InitErrorsTotal);
+            dst.ReadRequestErrorsTotal += Interlocked.Read(ref c.ReadRequestErrorsTotal);
+            dst.EncodeErrorsTotal += Interlocked.Read(ref c.EncodeErrorsTotal);
+            dst.SendErrorsTotal += Interlocked.Read(ref c.SendErrorsTotal);
+            dst.HttpNotFoundErrorsTotal += Interlocked.Read(ref c.HttpNotFoundErrorsTotal);
+        }
+        return dst;
+    }
 
     public void Reset()
     {

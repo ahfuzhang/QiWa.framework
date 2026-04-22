@@ -39,7 +39,7 @@ public partial class ThreadLocalLogger
     // ThreadLocal
     internal static readonly ThreadLocal<ThreadLocalLogger> _threadLocal =
         new ThreadLocal<ThreadLocalLogger>(() => new ThreadLocalLogger(), trackAllValues: true);
-    internal static ThreadLocalLogger Current => _threadLocal.Value!;
+    public static ThreadLocalLogger Current => _threadLocal.Value!;
 
     public ThreadLocalLogger()
     {
