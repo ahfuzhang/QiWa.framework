@@ -9,7 +9,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -25,7 +25,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -43,7 +43,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -63,7 +63,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -85,7 +85,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -109,7 +109,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -135,7 +135,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -163,7 +163,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -193,7 +193,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -225,7 +225,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -259,7 +259,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -295,7 +295,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -333,7 +333,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -373,7 +373,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -415,7 +415,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -459,7 +459,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -505,7 +505,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16, Field field17)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -553,7 +553,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16, Field field17, Field field18)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -603,7 +603,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16, Field field17, Field field18, Field field19)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
@@ -655,7 +655,7 @@ public partial class TaskLogger
     public TaskLogger WithFields(Field field1, Field field2, Field field3, Field field4, Field field5, Field field6, Field field7, Field field8, Field field9, Field field10, Field field11, Field field12, Field field13, Field field14, Field field15, Field field16, Field field17, Field field18, Field field19, Field field20)
     {
         TaskLogger l = Logger.Get();
-        l.prefix.Append(prefix.AsSpan());
+
         if (l.prefix.Length == 0)
         {
             l.prefix.Append((byte)'{');
