@@ -128,7 +128,7 @@ public abstract class ContextBase
     {
         // 下面进行数据反序列化
         Error err;
-        if (this.HttpContext!.Request.ContentType == "application/protobuf")
+        if (this.HttpContext!.Request.ContentType?.StartsWith("application/protobuf") == true)
         {
             err = req.FromProtobuf(reqBytes);
             if (err.Err())
@@ -138,7 +138,7 @@ public abstract class ContextBase
             }
             this.ContentType = RequestContentType.Protobuf;
         }
-        else if (this.HttpContext!.Request.ContentType == "application/json")
+        else if (this.HttpContext!.Request.ContentType?.StartsWith("application/json") == true)
         {
             // 解析 JSON 数据到 Request 对象
             err = req.FromJSON(reqBytes);

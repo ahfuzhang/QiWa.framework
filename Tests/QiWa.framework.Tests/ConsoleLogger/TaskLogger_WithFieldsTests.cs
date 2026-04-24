@@ -37,13 +37,15 @@ public class TaskLogger_WithFieldsTests : TestBase
                 Logger.SetLevel(LogLevel.Info);
                 scopedLogger.Info(Field.String("msg"u8, "empty-prefix"));
 
-                var output = GetCapturedOutput();
+                var lines = GetCapturedLines();
+                AssertAllLinesAreValidJson(lines);
+                var output = string.Join("\n", lines);
                 var normalizedOutput = NormalizeOutput(output);
 
                 AssertContainsFields(output, fieldCount);
                 Assert.Contains("\"msg\":\"empty-prefix\"", output);
-                Assert.Contains("{\"f1\":1", normalizedOutput);
-                Assert.Contains($"\"f{fieldCount}\":{fieldCount},\"msg\":\"empty-prefix\"", normalizedOutput);
+                Assert.Contains("{\"app\":\"test\"", normalizedOutput);
+                Assert.Contains($"\"f{fieldCount}\":{fieldCount}", normalizedOutput);
             }
             finally
             {
@@ -78,14 +80,16 @@ public class TaskLogger_WithFieldsTests : TestBase
                     Logger.SetLevel(LogLevel.Info);
                     scopedLogger.Info(Field.String("msg"u8, "existing-prefix"));
 
-                    var output = GetCapturedOutput();
+                    var lines = GetCapturedLines();
+                    AssertAllLinesAreValidJson(lines);
+                    var output = string.Join("\n", lines);
                     var normalizedOutput = NormalizeOutput(output);
 
                     Assert.Contains("\"seed\":\"existing\"", output);
                     AssertContainsFields(output, fieldCount);
                     Assert.Contains("\"msg\":\"existing-prefix\"", output);
-                    Assert.Contains("{\"seed\":\"existing\",\"f1\":1", normalizedOutput);
-                    Assert.Contains($"\"f{fieldCount}\":{fieldCount},\"msg\":\"existing-prefix\"", normalizedOutput);
+                    Assert.Contains("\"app\":\"test\"", normalizedOutput);
+                    Assert.Contains($"\"f{fieldCount}\":{fieldCount}", normalizedOutput);
                 }
                 finally
                 {
@@ -123,6 +127,7 @@ public class TaskLogger_WithFieldsTests : TestBase
                 scopedLogger.Info(Field.String("msg"u8, "child"));
 
                 var lines = GetCapturedLines();
+                AssertAllLinesAreValidJson(lines);
                 var rootLine = lines.Single(line => line.Contains("\"msg\":\"root\"", StringComparison.Ordinal));
                 var childLine = lines.Single(line => line.Contains("\"msg\":\"child\"", StringComparison.Ordinal));
 

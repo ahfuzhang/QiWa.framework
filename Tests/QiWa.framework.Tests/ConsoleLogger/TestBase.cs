@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.Json;
 using QiWa.ConsoleLogger;
 using Xunit;
 
@@ -16,7 +17,12 @@ public class ConsoleLoggerFixture : IDisposable
     public ConsoleLoggerFixture()
     {
         // Global initialization for all tests
-        Logger.Init(LogLevel.Debug, 100, null, 1024 * 4);
+        Logger.Init(LogLevel.Debug, 100, new Dictionary<string, string>
+        {
+            ["app"] = "test",
+            ["env"] = "unit",
+            ["version"] = "1.0"
+        }, 1024 * 4);
     }
 
     public void Dispose()
@@ -73,5 +79,22 @@ public abstract class TestBase
     protected void ClearCapturedOutput()
     {
         _capturedOutput.Clear();
+    }
+
+    protected static void AssertAllLinesAreValidJson(IEnumerable<string> lines)
+    {
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+            try
+            {
+                using var _ = JsonDocument.Parse(trimmed);
+            }
+            catch (JsonException ex)
+            {
+                Assert.True(false, $"Log line is not valid JSON.\nLine: {trimmed}\nError: {ex.Message}");
+            }
+        }
     }
 }
