@@ -156,6 +156,7 @@ public partial class ThreadLocalLogger
             try
             {
                 // see: https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient.postasync?view=net-10.0#system-net-http-httpclient-postasync(system-uri-system-net-http-httpcontent)
+                // todo: 这里应该使用 fire and forgot 的模型 => 上层使用了 fire and forgot 模型
                 using var response = await httpClient.PostAsync(Logger.Instance.JsonLineUrl, content, Logger.Instance.LoggerToken.Token).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {

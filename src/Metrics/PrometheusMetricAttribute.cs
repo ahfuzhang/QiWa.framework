@@ -17,9 +17,14 @@ public sealed class PrometheusMetricAttribute : Attribute
     }
 }
 
-public class MetricsBase
+public interface IMetricFormatter
 {
-    public void Output(ref RentedBuffer buf)
+    public void ToPrometheusText(ref RentedBuffer buf);
+}
+
+public class MetricsBase : IMetricFormatter
+{
+    public void ToPrometheusText(ref RentedBuffer buf)
     {
         foreach (var field in GetType().GetFields(
                              BindingFlags.Instance |
@@ -35,6 +40,10 @@ public class MetricsBase
                 continue;
             }
             var value = (ulong)field.GetValue(this)!;
+            if (value == 0)
+            {
+                continue;
+            }
             buf.Append(attr.Name);
             if (!string.IsNullOrWhiteSpace(attr.Labels))
             {

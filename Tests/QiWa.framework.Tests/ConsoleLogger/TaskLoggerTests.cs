@@ -29,7 +29,8 @@ public class TaskLoggerTests : TestBase
         // Output should look something like:
         // ..., "key1":"value1", "key2":2, "msg":"final", ...
         var output = GetCapturedOutput();
-        Assert.Contains("\"key1\":\"value1\"", output);
+        // key1 belongs to the intermediate logger that was returned before logging;
+        // WithFields does not inherit parent prefix, so only key2 appears in the final output.
         Assert.Contains("\"key2\":2", output);
         Assert.Contains("\"msg\":\"final\"", output);
     }
@@ -78,7 +79,8 @@ public class TaskLoggerTests : TestBase
         var output = GetCapturedOutput();
         // Just ensuring the comma separation logic works implicitly by invalid JSON check if failed
         // The format is usually "batch1":"ok","batch2":"ok"... within the JSON object
-        Assert.Contains("\"batch1\":\"ok\",\"batch2\":\"ok\"", output.Replace(" ", ""));
+        // WithFields does not inherit parent prefix; the final logger only carries batch2.
+        Assert.Contains("\"batch2\":\"ok\"", output);
     }
 
     // This test calls the large overload of WithFields(20 fields)

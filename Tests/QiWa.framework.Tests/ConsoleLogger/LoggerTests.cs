@@ -477,7 +477,12 @@ public class LoggerTests : TestBase
         finally
         {
             Logger.Shutdown();
-            Logger.Init(LogLevel.Debug, 100, null, 1024 * 4);
+            Logger.Init(LogLevel.Debug, 100, new Dictionary<string, string>
+            {
+                ["app"] = "test",
+                ["env"] = "unit",
+                ["version"] = "1.0",
+            }, 1024 * 4);
         }
     }
 

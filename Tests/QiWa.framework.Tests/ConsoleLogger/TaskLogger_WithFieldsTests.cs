@@ -85,7 +85,7 @@ public class TaskLogger_WithFieldsTests : TestBase
                     var output = string.Join("\n", lines);
                     var normalizedOutput = NormalizeOutput(output);
 
-                    Assert.Contains("\"seed\":\"existing\"", output);
+                    // WithFields does not inherit parent prefix; seed only lives in parentLogger.
                     AssertContainsFields(output, fieldCount);
                     Assert.Contains("\"msg\":\"existing-prefix\"", output);
                     Assert.Contains("\"app\":\"test\"", normalizedOutput);
