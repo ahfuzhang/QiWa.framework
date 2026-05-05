@@ -55,7 +55,16 @@ public class MetricsBase : IMetricFormatter
                     buf.Append((byte)'\n');
                     break;
                 case Type t when t == typeof(LatencyHistogram):
-                    ((LatencyHistogram)field.GetValue(this)!).ToPrometheusText(ref buf);
+                    var hist = (LatencyHistogram)field.GetValue(this)!;
+                    if (string.IsNullOrEmpty(hist.MetricName))
+                    {
+                        hist.MetricName = attr.Name;
+                    }
+                    if (string.IsNullOrEmpty(hist.Labels))
+                    {
+                        hist.Labels = attr.Labels;
+                    }
+                    hist.ToPrometheusText(ref buf);
                     break;
                 default:
                     continue;
