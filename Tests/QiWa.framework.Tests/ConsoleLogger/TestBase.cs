@@ -93,7 +93,7 @@ public abstract class TestBase
             }
             catch (JsonException ex)
             {
-                Assert.True(false, $"Log line is not valid JSON.\nLine: {trimmed}\nError: {ex.Message}");
+                Assert.Fail($"Log line is not valid JSON.\nLine: {trimmed}\nError: {ex.Message}");
             }
         }
     }

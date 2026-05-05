@@ -152,7 +152,8 @@ public readonly ref struct Field
     {
         rent.Append((byte)'"');
         rent.Append(this.Name);
-        rent.Append("\":");
+        // 对应“类似位置的字符串常量进行修改，避免 utf-16 到 utf-8 的转换”：分隔符直接写为 UTF-8 常量。
+        rent.Append("\":"u8);
         switch (this.DataType)
         {
             case FieldDataType.String:

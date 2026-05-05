@@ -35,10 +35,12 @@ public enum CompressType
 public class Counters : QiWa.Metrics.MetricsBase, QiWa.Common.IResettable
 {
     // 总请求数
+    // 交给子类去累加
     [PrometheusMetric("http_request_total", "framework=\"QiWa\"")]
     public UInt64 HttpRequestTotal;
 
     // 错误：错误请求数
+    // 交给子类去累加
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"bad request\"")]
     public UInt64 HttpBadRequestTotal;
 
@@ -59,6 +61,7 @@ public class Counters : QiWa.Metrics.MetricsBase, QiWa.Common.IResettable
     public UInt64 SendErrorsTotal;
 
     // 错误: 找不到对应路径
+    // 交给子类去累加
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"404\",err_type=\"not found error\"")]
     public UInt64 HttpNotFoundErrorsTotal;
 
@@ -249,8 +252,8 @@ public abstract class ContextBase
             httpContext.Response.StatusCode = 400;
             return Error.WithLoc(code: 400, message: "no ContentType");
         }
-        if (httpContext.Request.ContentType.StartsWith("application/json") &&
-            httpContext.Request.ContentType.StartsWith("application/protobuf"))
+        if (!httpContext.Request.ContentType.StartsWith("application/json") &&
+            !httpContext.Request.ContentType.StartsWith("application/protobuf"))
         {
             httpContext.Response.StatusCode = 400;
             return Error.WithLoc(code: 400, message: "not support content type: " + httpContext.Request.ContentType);
@@ -279,7 +282,7 @@ public abstract class ContextBase
                 this.HttpContext!.Response.StatusCode = 400;
                 return Error.WithLoc(code: 400, message: "Failed to parse Protobuf: " + err.Message);
             }
-            Interlocked.And(ref Counters.JsonRequestBytesTotal, (ulong)reqBytes.Length);
+            Interlocked.Add(ref Counters.ProtobufRequestBytesTotal, (ulong)reqBytes.Length);
         }
         else if (this.HttpContext!.Request.ContentType?.StartsWith("application/json") == true)
         {
@@ -292,7 +295,7 @@ public abstract class ContextBase
                 this.HttpContext!.Response.StatusCode = 400;
                 return Error.WithLoc(code: 400, message: "Failed to parse JSON: " + err.Message);
             }
-            Interlocked.And(ref Counters.ProtobufRequestBytesTotal, (ulong)reqBytes.Length);
+            Interlocked.Add(ref Counters.JsonRequestBytesTotal, (ulong)reqBytes.Length);
         }
         else
         {
@@ -312,12 +315,12 @@ public abstract class ContextBase
             case SerializeType.JSON:
                 this.HttpContext!.Response.Headers.ContentType = "application/json";
                 rsp.ToJSON(ref this.ResponseBuffer);
-                Interlocked.And(ref Counters.JsonResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
+                Interlocked.Add(ref Counters.JsonResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
                 break;
             case SerializeType.Protobuf:
                 this.HttpContext!.Response.Headers.ContentType = "application/protobuf";
                 rsp.ToProtobuf(ref this.ResponseBuffer);
-                Interlocked.And(ref Counters.ProtobufResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
+                Interlocked.Add(ref Counters.ProtobufResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
                 break;
             default:
                 throw new Exception("impossible error");
@@ -335,7 +338,7 @@ public abstract class ContextBase
             }
             this.HttpContext!.Response.Headers.ContentEncoding = "zstd";
             responseBytes = this.RequestData.AsSpan().ToArray();
-            Interlocked.And(ref Counters.ZstdResponseBytesTotal, (ulong)responseBytes.Length);
+            Interlocked.Add(ref Counters.ZstdResponseBytesTotal, (ulong)responseBytes.Length);
         }
         else if (acceptEncoding.Contains("gzip"))
         {
@@ -349,12 +352,12 @@ public abstract class ContextBase
             this.RequestData = compressed;
             this.HttpContext!.Response.Headers.ContentEncoding = "gzip";
             responseBytes = this.RequestData.AsSpan().ToArray();
-            Interlocked.And(ref Counters.GzipResponseBytesTotal, (ulong)responseBytes.Length);
+            Interlocked.Add(ref Counters.GzipResponseBytesTotal, (ulong)responseBytes.Length);
         }
         else
         {
             responseBytes = this.ResponseBuffer.AsSpan().ToArray();
-            Interlocked.And(ref Counters.NotCompressedResponseBytesTotal, (ulong)responseBytes.Length);
+            Interlocked.Add(ref Counters.NotCompressedResponseBytesTotal, (ulong)responseBytes.Length);
         }
         return (responseBytes, default);
     }

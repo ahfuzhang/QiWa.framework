@@ -52,6 +52,13 @@
     <Compile Remove="examples/**" />
     <Content Remove="examples\**" />
     <Content Remove="examples/**" />
+    <!-- 对应“为 ContextBase 生成测试并执行 make build”：build 目录下放的是生成模板和中间文件，不应参与主库编译。 -->
+    <Compile Remove="build\**" />
+    <Compile Remove="build/**" />
+    <None Remove="build\**" />
+    <None Remove="build/**" />
+    <Content Remove="build\**" />
+    <Content Remove="build/**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -60,7 +67,7 @@
     <PackageReference Include="protobuf-net" Version="3.2.56" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.7" />
-    <PackageReference Include="OpenTelemetry" Version="1.15.0" />
+    <PackageReference Include="OpenTelemetry" Version="1.15.3" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />

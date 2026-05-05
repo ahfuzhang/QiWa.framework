@@ -35,25 +35,31 @@ public class MetricsBase : IMetricFormatter
             {
                 continue;
             }
-            if (field.FieldType != typeof(ulong))
+            switch (field.FieldType)
             {
-                continue;
+                case Type t when t == typeof(ulong):
+                    var v = (ulong)field.GetValue(this)!;
+                    if (v == 0)
+                    {
+                        continue;
+                    }
+                    buf.Append(attr.Name);
+                    if (!string.IsNullOrWhiteSpace(attr.Labels))
+                    {
+                        buf.Append((byte)'{');
+                        buf.Append(attr.Labels);
+                        buf.Append((byte)'}');
+                    }
+                    buf.Append((byte)' ');
+                    buf.Append(v);
+                    buf.Append((byte)'\n');
+                    break;
+                case Type t when t == typeof(LatencyHistogram):
+                    ((LatencyHistogram)field.GetValue(this)!).ToPrometheusText(ref buf);
+                    break;
+                default:
+                    continue;
             }
-            var value = (ulong)field.GetValue(this)!;
-            if (value == 0)
-            {
-                continue;
-            }
-            buf.Append(attr.Name);
-            if (!string.IsNullOrWhiteSpace(attr.Labels))
-            {
-                buf.Append('{');
-                buf.Append(attr.Labels);
-                buf.Append('}');
-            }
-            buf.Append(' ');
-            buf.Append(value);
-            buf.Append('\n');
         }
     }
 }
