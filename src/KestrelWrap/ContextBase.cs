@@ -121,6 +121,9 @@ public class Counters : QiWa.Metrics.MetricsBase, QiWa.Common.IResettable
     [PrometheusMetric("compressed_http_response_bytes_total", "framework=\"QiWa\",compress_type=\"no\"")]
     public UInt64 NotCompressedResponseBytesTotal;
 
+    [PrometheusMetric("framework_latency", "framework=\"QiWa\"")]
+    public LatencyHistogram Latency;
+
     public void Reset()
     {
         HttpRequestTotal = 0;
@@ -144,6 +147,7 @@ public class Counters : QiWa.Metrics.MetricsBase, QiWa.Common.IResettable
         ZstdResponseBytesTotal = 0;
         GzipResponseBytesTotal = 0;
         NotCompressedResponseBytesTotal = 0;
+        Latency.Reset();
     }
 }
 
@@ -202,6 +206,7 @@ public abstract class ContextBase
             dst.ZstdResponseBytesTotal += Interlocked.Read(ref c.ZstdResponseBytesTotal);
             dst.GzipResponseBytesTotal += Interlocked.Read(ref c.GzipResponseBytesTotal);
             dst.NotCompressedResponseBytesTotal += Interlocked.Read(ref c.NotCompressedResponseBytesTotal);
+            dst.Latency.Sum(ref c.Latency);
         }
         return dst;
     }
