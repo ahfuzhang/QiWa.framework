@@ -1,6 +1,7 @@
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace QiWa.KestrelWrap;
 
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO;
 using Microsoft.AspNetCore.Http;
@@ -121,7 +122,7 @@ public class Counters : QiWa.Metrics.MetricsBase, QiWa.Common.IResettable
     [PrometheusMetric("compressed_http_response_bytes_total", "framework=\"QiWa\",compress_type=\"no\"")]
     public UInt64 NotCompressedResponseBytesTotal;
 
-    [PrometheusMetric("framework_latency", "framework=\"QiWa\"")]
+    [PrometheusMetric("framework_latency_us", "framework=\"QiWa\"")]
     public LatencyHistogram Latency;
 
     public void Reset()
@@ -165,6 +166,7 @@ public abstract class ContextBase
     public TaskLogger? L;
     public SerializeType SerializeType;
     public CompressType CompressType;
+    public bool IsGrpc;
     public RentedBuffer ResponseBuffer = new RentedBuffer(ServerConfig.DefaultRequestSize);
 
     // ThreadLocal
@@ -221,10 +223,11 @@ public abstract class ContextBase
         {
             Logger.Return(L!);
         }
-        L = null;  // 没必要设置为 null，放回对象池后，肯定不再使用
+        L = null;
         SerializeType = SerializeType.Unknown;
         CompressType = CompressType.NotCompressed;
         ResponseBuffer.Length = 0;
+        IsGrpc = false;
     }
 
     public void Dispose()
@@ -257,15 +260,49 @@ public abstract class ContextBase
             httpContext.Response.StatusCode = 400;
             return Error.WithLoc(code: 400, message: "no ContentType");
         }
+        // todo: 支持 application/octet-stream
+        // todo: 支持 application/x-www-form-urlencoded
         if (!httpContext.Request.ContentType.StartsWith("application/json") &&
             !httpContext.Request.ContentType.StartsWith("application/protobuf"))
         {
             httpContext.Response.StatusCode = 400;
             return Error.WithLoc(code: 400, message: "not support content type: " + httpContext.Request.ContentType);
         }
-        if (httpContext.Request.ContentLength == null ||
-            httpContext.Request.ContentLength == 0 ||
-            httpContext.Request.ContentLength > ServerConfig.MaxRequestSize)
+        // 如果存在 content-length
+        if (httpContext.Request.ContentLength != null &&
+            (httpContext.Request.ContentLength == 0 ||
+            httpContext.Request.ContentLength > ServerConfig.MaxRequestSize))
+        {
+            httpContext.Response.StatusCode = 400;
+            return Error.WithLoc(code: 400, message: $"Content-Length must be greater than 0 and less than {ServerConfig.MaxRequestSize} bytes");
+        }
+        return default;
+    }
+
+    public static Error GrpcValidate(HttpContext httpContext)
+    {
+        Debug.Assert(httpContext != null);
+        Debug.Assert(httpContext.Request != null);
+        // 验证请求数据是否合法，例如检查必填字段、字段格式等
+        if (httpContext.Request.Method != HttpMethods.Post)
+        {
+            httpContext.Response.StatusCode = 405;  // Method Not Allowed
+            return Error.WithLoc(code: 405, message: "Only POST method is allowed");
+        }
+        if (httpContext.Request.ContentType == null)
+        {
+            httpContext.Response.StatusCode = 400;
+            return Error.WithLoc(code: 400, message: "no ContentType");
+        }
+        if (!httpContext.Request.ContentType.StartsWith("application/grpc"))
+        {
+            httpContext.Response.StatusCode = 400;
+            return Error.WithLoc(code: 400, message: "not support content type: " + httpContext.Request.ContentType);
+        }
+        // 如果存在 content-length
+        if (httpContext.Request.ContentLength != null &&
+            (httpContext.Request.ContentLength == 0 ||
+            httpContext.Request.ContentLength > ServerConfig.MaxRequestSize))
         {
             httpContext.Response.StatusCode = 400;
             return Error.WithLoc(code: 400, message: $"Content-Length must be greater than 0 and less than {ServerConfig.MaxRequestSize} bytes");
@@ -277,19 +314,8 @@ public abstract class ContextBase
     {
         // 下面进行数据反序列化
         Error err;
-        if (this.HttpContext!.Request.ContentType?.StartsWith("application/protobuf") == true)
-        {
-            this.SerializeType = SerializeType.Protobuf;
-            err = req.FromProtobuf(reqBytes);
-            if (err.Err())
-            {
-                Interlocked.Increment(ref Counters.HttpProtobufDecodeErrorsTotal);
-                this.HttpContext!.Response.StatusCode = 400;
-                return Error.WithLoc(code: 400, message: "Failed to parse Protobuf: " + err.Message);
-            }
-            Interlocked.Add(ref Counters.ProtobufRequestBytesTotal, (ulong)reqBytes.Length);
-        }
-        else if (this.HttpContext!.Request.ContentType?.StartsWith("application/json") == true)
+        string contentType = this.HttpContext!.Request.ContentType!.ToString();
+        if (contentType.StartsWith("application/json") || contentType.StartsWith("application/grpc+json"))
         {
             // 解析 JSON 数据到 Request 对象
             this.SerializeType = SerializeType.JSON;
@@ -301,15 +327,25 @@ public abstract class ContextBase
                 return Error.WithLoc(code: 400, message: "Failed to parse JSON: " + err.Message);
             }
             Interlocked.Add(ref Counters.JsonRequestBytesTotal, (ulong)reqBytes.Length);
+            return default;
         }
-        else
+        if (contentType.StartsWith("application/protobuf") || contentType.StartsWith("application/grpc"))
         {
-            this.SerializeType = SerializeType.Unknown;
-            Interlocked.Increment(ref Counters.HttpUnknownFormatErrorsTotal);
-            this.HttpContext!.Response.StatusCode = 400;
-            return Error.WithLoc(code: 400, message: "Unsupported Content-Type: " + this.HttpContext!.Request.ContentType);
+            this.SerializeType = SerializeType.Protobuf;
+            err = req.FromProtobuf(reqBytes);
+            if (err.Err())
+            {
+                Interlocked.Increment(ref Counters.HttpProtobufDecodeErrorsTotal);
+                this.HttpContext!.Response.StatusCode = 400;
+                return Error.WithLoc(code: 400, message: "Failed to parse Protobuf: " + err.Message);
+            }
+            Interlocked.Add(ref Counters.ProtobufRequestBytesTotal, (ulong)reqBytes.Length);
+            return default;
         }
-        return default;
+        this.SerializeType = SerializeType.Unknown;
+        Interlocked.Increment(ref Counters.HttpUnknownFormatErrorsTotal);
+        this.HttpContext!.Response.StatusCode = 400;
+        return Error.WithLoc(code: 400, message: "Unsupported Content-Type: " + this.HttpContext!.Request.ContentType);
     }
 
     public (byte[]?, Error) Encode<TResponse>(ref readonly TResponse rsp) where TResponse : struct, QiWa.Common.IEncoder
@@ -318,12 +354,12 @@ public abstract class ContextBase
         switch (this.SerializeType)
         {
             case SerializeType.JSON:
-                this.HttpContext!.Response.Headers.ContentType = "application/json";
+                this.HttpContext!.Response.Headers.ContentType = IsGrpc ? "application/grpc+json" : "application/json";
                 rsp.ToJSON(ref this.ResponseBuffer);
                 Interlocked.Add(ref Counters.JsonResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
                 break;
             case SerializeType.Protobuf:
-                this.HttpContext!.Response.Headers.ContentType = "application/protobuf";
+                this.HttpContext!.Response.Headers.ContentType = IsGrpc ? "application/grpc+proto" : "application/protobuf";
                 rsp.ToProtobuf(ref this.ResponseBuffer);
                 Interlocked.Add(ref Counters.ProtobufResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
                 break;
@@ -331,7 +367,7 @@ public abstract class ContextBase
                 throw new Exception("impossible error");
         }
         byte[]? responseBytes;
-        string acceptEncoding = this.HttpContext!.Request.Headers.AcceptEncoding.ToString();
+        string acceptEncoding = IsGrpc ? this.HttpContext!.Request.Headers["grpc-accept-encoding"].ToString() : this.HttpContext!.Request.Headers.AcceptEncoding.ToString();
         if (acceptEncoding.Contains("zstd"))
         {
             this.RequestData.Length = 0;
@@ -341,7 +377,14 @@ public abstract class ContextBase
                 Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
                 return (null, err);
             }
-            this.HttpContext!.Response.Headers.ContentEncoding = "zstd";
+            if (IsGrpc)
+            {
+                this.HttpContext!.Response.Headers["grpc-encoding"] = "zstd";
+            }
+            else
+            {
+                this.HttpContext!.Response.Headers.ContentEncoding = "zstd";
+            }
             responseBytes = this.RequestData.AsSpan().ToArray();
             Interlocked.Add(ref Counters.ZstdResponseBytesTotal, (ulong)responseBytes.Length);
         }
@@ -355,7 +398,14 @@ public abstract class ContextBase
             }
             this.RequestData.Dispose();
             this.RequestData = compressed;
-            this.HttpContext!.Response.Headers.ContentEncoding = "gzip";
+            if (IsGrpc)
+            {
+                this.HttpContext!.Response.Headers["grpc-encoding"] = "gzip";
+            }
+            else
+            {
+                this.HttpContext!.Response.Headers.ContentEncoding = "gzip";
+            }
             responseBytes = this.RequestData.AsSpan().ToArray();
             Interlocked.Add(ref Counters.GzipResponseBytesTotal, (ulong)responseBytes.Length);
         }
@@ -395,6 +445,9 @@ public abstract class ContextBase
                 */
                 // ConfigureAwait(false) 不必切换回原来的上下文，可以提高性能
                 await this.HttpContext.Request.Body.ReadExactlyAsync(RawRequest.Data, 0, contentLength, this.HttpContext.RequestAborted).ConfigureAwait(false);
+
+                // todo: 删除，下面的代码是为了做实验
+                //System.IO.Pipelines.PipeReader p = this.HttpContext.Request.BodyReader;
             }
             catch (EndOfStreamException ex)
             {
@@ -411,6 +464,7 @@ public abstract class ContextBase
             RawRequest.Length = contentLength;
             Interlocked.Add(ref Counters.RawRequestBytesTotal, (ulong)RawRequest.Length);
             return default;
+            // todo: 提供一个注入层，便于做混淆层的实现
         }
 
         // 无 Content-Length：循环读取直到 EOF，适用于 HTTP/2 多 stream 场景
@@ -453,11 +507,82 @@ public abstract class ContextBase
         return default;
     }
 
+    public (byte[]?, Error) ParseGrpc()
+    {
+        if (RawRequest.Length <= 5)
+        {
+            Interlocked.Increment(ref Counters.HttpBadRequestTotal);
+            this.HttpContext!.Response.StatusCode = 400;
+            return (null, Error.WithLoc(400, "length too short"));
+        }
+        if (RawRequest.Data[0] != 0 && RawRequest.Data[0] != 1)
+        {
+            Interlocked.Increment(ref Counters.HttpBadRequestTotal);
+            this.HttpContext!.Response.StatusCode = 400;
+            return (null, Error.WithLoc(400, "compress type error"));
+        }
+        byte compressType = RawRequest.Data[0];
+        var messageLength = BinaryPrimitives.ReadUInt32BigEndian(RawRequest.Data.AsSpan(1, 4));
+        if (RawRequest.Length != 5 + (int)messageLength)
+        {
+            Interlocked.Increment(ref Counters.HttpBadRequestTotal);
+            this.HttpContext!.Response.StatusCode = 400;
+            return (null, Error.WithLoc(400, "grpc frame length mismatch"));
+        }
+        byte[] bytes = RawRequest.Data.AsSpan(5, (int)messageLength).ToArray();
+        if (compressType == 0)
+        {
+            return (bytes, default);
+        }
+        // 进行解压缩操作
+        var grpcEncoding = this.HttpContext!.Request.Headers["grpc-encoding"].ToString();
+        if (grpcEncoding.Contains("zstd", StringComparison.CurrentCulture))
+        {
+            Debug.Assert(RequestData.Data != null);
+            Debug.Assert(RequestData.Length == 0);
+            // 重用 buffer，避免每次都 Rent
+            Error err = ZstdCompressor.Uncompress(ref RequestData, bytes);
+            if (err.Err())
+            {
+                Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
+                this.HttpContext.Response.StatusCode = 400;
+                return (null, Error.WithLoc(code: 400, message: "Failed to decompress zstd body: " + err.Message));
+            }
+            bytes = RequestData.AsSpan().ToArray();
+            Interlocked.Add(ref Counters.ZstdDecompressedRequestBytesTotal, (ulong)bytes.Length);
+        }
+        else if (grpcEncoding.Contains("gzip", StringComparison.CurrentCulture))
+        {
+            var (gzipBuf, gzipErr) = GzipCompressor.Uncompress(bytes);
+            if (gzipErr.Err())
+            {
+                Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
+                this.HttpContext.Response.StatusCode = 400;
+                return (null, Error.WithLoc(code: 400, message: "Failed to decompress gzip body: " + gzipErr.Message));
+            }
+            RequestData.Dispose();
+            RequestData = gzipBuf;
+            bytes = RequestData.AsSpan().ToArray();
+            Interlocked.Add(ref Counters.GzipDecompressedRequestBytesTotal, (ulong)bytes.Length);
+        }
+        else
+        {
+            Interlocked.Increment(ref Counters.HttpBadRequestTotal);
+            this.HttpContext.Response.StatusCode = 400;
+            return (null, Error.WithLoc(code: 400, message: "not supported compress type: " + grpcEncoding));
+        }
+        return (bytes, default);
+    }
+
     public (byte[]?, Error) Decompress()
     {
         // 处理压缩: 读 Content-Encoding，支持 gzip 和 zstd 压缩格式
         var contentEncoding = this.HttpContext!.Request.Headers.ContentEncoding.ToString();
         byte[] reqBytes = RawRequest.AsSpan().ToArray();
+        if (contentEncoding == "")
+        {
+            return (reqBytes, default);
+        }
         if (contentEncoding.Contains("zstd", StringComparison.CurrentCulture))
         {
             Debug.Assert(RequestData.Data != null);
@@ -486,6 +611,12 @@ public abstract class ContextBase
             RequestData = gzipBuf;
             reqBytes = RequestData.AsSpan().ToArray();
             Interlocked.Add(ref Counters.GzipDecompressedRequestBytesTotal, (ulong)reqBytes.Length);
+        }
+        else
+        {
+            Interlocked.Increment(ref Counters.HttpBadRequestTotal);
+            this.HttpContext.Response.StatusCode = 400;
+            return (null, Error.WithLoc(code: 400, message: "not supported compress type: " + contentEncoding));
         }
         return (reqBytes, default);
     }

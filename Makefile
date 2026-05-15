@@ -2,7 +2,7 @@
 COVERAGE_RAW    = build/coverage-raw
 COVERAGE_REPORT = build/coverage-report
 PACKAGE_ID      = QiWa.framework
-PACKAGE_VERSION ?= 0.4.2
+PACKAGE_VERSION ?= 0.4.3
 PACKAGE_OUTPUT  = bin/Release
 BUILD_CONFIGURATION ?= Debug
 NUGET_PACK_ARGS ?=
