@@ -45,7 +45,7 @@ public class Counters : QiWa.Metrics.MetricsBase, QiWa.Common.IResettable
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"bad request\"")]
     public UInt64 HttpBadRequestTotal;
 
-    // 错误：初始化失败数
+    // 错误：初始化失败数 (目前的逻辑，不可能触发这个错误)
     //[PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"init error\"")]
     //public UInt64 InitErrorsTotal;
 
@@ -166,7 +166,7 @@ public abstract class ContextBase
     public TaskLogger? L;
     public SerializeType SerializeType;
     public CompressType CompressType;
-    public bool IsGrpc;
+    public bool IsGrpc;  // 请求来自 grpc 协议
     public RentedBuffer ResponseBuffer = new RentedBuffer(ServerConfig.DefaultRequestSize);
 
     // ThreadLocal
@@ -274,7 +274,7 @@ public abstract class ContextBase
             httpContext.Request.ContentLength > ServerConfig.MaxRequestSize))
         {
             httpContext.Response.StatusCode = 400;
-            return Error.WithLoc(code: 400, message: $"Content-Length must be greater than 0 and less than {ServerConfig.MaxRequestSize} bytes");
+            return Error.WithLoc(code: 400, message: $"Content-Length must be greater than 0 and less than {ServerConfig.MaxRequestSize} bytes, Content-Length: {httpContext.Request.ContentLength}");
         }
         return default;
     }
@@ -305,7 +305,7 @@ public abstract class ContextBase
             httpContext.Request.ContentLength > ServerConfig.MaxRequestSize))
         {
             httpContext.Response.StatusCode = 400;
-            return Error.WithLoc(code: 400, message: $"Content-Length must be greater than 0 and less than {ServerConfig.MaxRequestSize} bytes");
+            return Error.WithLoc(code: 400, message: $"Content-Length must be greater than 0 and less than {ServerConfig.MaxRequestSize} bytes, Content-Length: {httpContext.Request.ContentLength}");
         }
         return default;
     }
@@ -348,35 +348,37 @@ public abstract class ContextBase
         return Error.WithLoc(code: 400, message: "Unsupported Content-Type: " + this.HttpContext!.Request.ContentType);
     }
 
+    const int GrpcHeaderLength = 5;
+
     public (byte[]?, Error) Encode<TResponse>(ref readonly TResponse rsp) where TResponse : struct, QiWa.Common.IEncoder
     {
         Debug.Assert(ResponseBuffer.Length == 0);
         if (IsGrpc)
         {
-            this.ResponseBuffer.Length = 5;  // 预留 grpc 的头长
+            this.ResponseBuffer.Length = GrpcHeaderLength;  // 预留 grpc 的头长
         }
         switch (this.SerializeType)
         {
             case SerializeType.JSON:
-                this.HttpContext!.Response.Headers.ContentType = IsGrpc ? "application/grpc+json" : "application/json";
+                this.HttpContext!.Response.ContentType = IsGrpc ? "application/grpc+json" : "application/json";
                 rsp.ToJSON(ref this.ResponseBuffer);
                 Interlocked.Add(ref Counters.JsonResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
                 break;
             case SerializeType.Protobuf:
-                this.HttpContext!.Response.Headers.ContentType = IsGrpc ? "application/grpc+proto" : "application/protobuf";
+                this.HttpContext!.Response.ContentType = IsGrpc ? "application/grpc+proto" : "application/protobuf";
                 rsp.ToProtobuf(ref this.ResponseBuffer);
                 Interlocked.Add(ref Counters.ProtobufResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
                 break;
             default:
                 throw new Exception("impossible error");
         }
-        ReadOnlySpan<byte> data = IsGrpc ? this.ResponseBuffer.Data.AsSpan(5, this.ResponseBuffer.Length - 5) : this.ResponseBuffer.AsSpan();  // 序列化后的数据
+        ReadOnlySpan<byte> data = IsGrpc ? this.ResponseBuffer.Data.AsSpan(GrpcHeaderLength, this.ResponseBuffer.Length - GrpcHeaderLength) : this.ResponseBuffer.AsSpan();  // 序列化后的数据
         byte[]? responseBytes;
         string acceptEncoding = IsGrpc ? this.HttpContext!.Request.Headers["grpc-accept-encoding"].ToString() : this.HttpContext!.Request.Headers.AcceptEncoding.ToString();
         byte compressedFlag = 0;
         if (acceptEncoding.Contains("zstd"))
         {
-            this.RequestData.Length = IsGrpc ? 5 : 0;  // 重用临时缓冲区
+            this.RequestData.Length = IsGrpc ? GrpcHeaderLength : 0;  // 重用临时缓冲区
             Error err = QiWa.Compress.ZstdCompressor.Compress(ref this.RequestData, data);
             if (err.Err())
             {
@@ -397,7 +399,7 @@ public abstract class ContextBase
         }
         else if (acceptEncoding.Contains("gzip"))
         {
-            var (compressed, err) = QiWa.Compress.GzipCompressor.Compress(data, reserve: IsGrpc ? 5 : 0);
+            var (compressed, err) = QiWa.Compress.GzipCompressor.Compress(data, reserve: IsGrpc ? GrpcHeaderLength : 0);
             if (err.Err())
             {
                 Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
@@ -426,11 +428,11 @@ public abstract class ContextBase
         if (IsGrpc)
         {
             // 填充 grpc 的头部
-            UInt32 l = (UInt32)responseBytes.Length;
-            responseBytes[4] = (byte)(l >> 24);
-            responseBytes[3] = (byte)((l >> 16) & 0xFF);
-            responseBytes[2] = (byte)((l >> 8) & 0xFF);
-            responseBytes[1] = (byte)(l);
+            UInt32 l = (UInt32)responseBytes.Length - GrpcHeaderLength;
+            responseBytes[4] = (byte)(l);
+            responseBytes[3] = (byte)((l >> 8) & 0xFF);
+            responseBytes[2] = (byte)((l >> 16) & 0xFF);
+            responseBytes[1] = (byte)(l >> 24);
             responseBytes[0] = compressedFlag;
         }
         return (responseBytes, default);
@@ -464,9 +466,6 @@ public abstract class ContextBase
                 */
                 // ConfigureAwait(false) 不必切换回原来的上下文，可以提高性能
                 await this.HttpContext.Request.Body.ReadExactlyAsync(RawRequest.Data, 0, contentLength, this.HttpContext.RequestAborted).ConfigureAwait(false);
-
-                // todo: 删除，下面的代码是为了做实验
-                //System.IO.Pipelines.PipeReader p = this.HttpContext.Request.BodyReader;
             }
             catch (EndOfStreamException ex)
             {
@@ -528,7 +527,7 @@ public abstract class ContextBase
 
     public (byte[]?, Error) ParseGrpc()
     {
-        if (RawRequest.Length <= 5)
+        if (RawRequest.Length <= GrpcHeaderLength)
         {
             Interlocked.Increment(ref Counters.HttpBadRequestTotal);
             this.HttpContext!.Response.StatusCode = 400;
@@ -542,7 +541,7 @@ public abstract class ContextBase
         }
         byte compressType = RawRequest.Data[0];
         var messageLength = BinaryPrimitives.ReadUInt32BigEndian(RawRequest.Data.AsSpan(1, 4));
-        if (RawRequest.Length != 5 + (int)messageLength)
+        if (RawRequest.Length != GrpcHeaderLength + (int)messageLength)
         {
             Interlocked.Increment(ref Counters.HttpBadRequestTotal);
             this.HttpContext!.Response.StatusCode = 400;
