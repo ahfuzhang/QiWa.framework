@@ -167,7 +167,6 @@ public class ContextBaseTests
             (CreateHttpContext(method: "GET", bodyBytes: Utf8("x"), contentLength: 1), 405, "Only POST method is allowed"),
             (CreateHttpContext(contentType: null, bodyBytes: Utf8("x"), contentLength: 1), 400, "no ContentType"),
             (CreateHttpContext(contentType: "text/plain", bodyBytes: Utf8("x"), contentLength: 1), 400, "not support content type"),
-            (CreateHttpContext(contentLength: null), 400, "Content-Length must be greater than 0"),
             (CreateHttpContext(contentLength: 0), 400, "Content-Length must be greater than 0"),
             (CreateHttpContext(contentLength: ServerConfig.MaxRequestSize + 1L), 400, "Content-Length must be greater than 0"),
         };

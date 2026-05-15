@@ -36,6 +36,11 @@ public class GzipCompressor
             Buffer.Length = 0;
         }
 
+        public void Reserve(int len)
+        {
+            Buffer.Length = len;
+        }
+
         /// <summary>
         /// 将所有权转交给调用者，stream 不再持有该 buffer 的引用
         /// </summary>
@@ -61,7 +66,7 @@ public class GzipCompressor
         public override void Write(byte[] buffer, int offset, int count)
         {
             Buffer.Extend(count);
-            buffer.AsSpan(offset, count).CopyTo(Buffer.Data.AsSpan(Buffer.Length));
+            buffer.AsSpan(offset, count).CopyTo(Buffer.Data.AsSpan(Buffer.Length));  // todo:  发生了拷贝，值得优化
             Buffer.Length += count;
         }
 
@@ -82,12 +87,13 @@ public class GzipCompressor
     /// 对数据进行 gzip 压缩
     /// </summary>
     /// <param name="input"></param>
+    /// <param name="reserve"></param>
     /// <returns></returns>
-    public static (RentedBuffer, Error) Compress(ReadOnlySpan<byte> input)
+    public static (RentedBuffer, Error) Compress(ReadOnlySpan<byte> input, int reserve = 0)
     {
         var stream = _compressStream ??= new RentedBufferWriteStream();
         stream.Reset(Math.Max(input.Length, 64));
-
+        stream.Reserve(reserve);  // 在压缩 grpc 的返回的时候，可以用于预留 5 字节的 grpc 首部
         try
         {
             using var gzip = new GZipStream(stream, CompressionLevel.Optimal, leaveOpen: true);

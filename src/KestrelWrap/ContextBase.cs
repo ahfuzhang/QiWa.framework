@@ -351,6 +351,10 @@ public abstract class ContextBase
     public (byte[]?, Error) Encode<TResponse>(ref readonly TResponse rsp) where TResponse : struct, QiWa.Common.IEncoder
     {
         Debug.Assert(ResponseBuffer.Length == 0);
+        if (IsGrpc)
+        {
+            this.ResponseBuffer.Length = 5;  // 预留 grpc 的头长
+        }
         switch (this.SerializeType)
         {
             case SerializeType.JSON:
@@ -366,12 +370,14 @@ public abstract class ContextBase
             default:
                 throw new Exception("impossible error");
         }
+        ReadOnlySpan<byte> data = IsGrpc ? this.ResponseBuffer.Data.AsSpan(5, this.ResponseBuffer.Length - 5) : this.ResponseBuffer.AsSpan();  // 序列化后的数据
         byte[]? responseBytes;
         string acceptEncoding = IsGrpc ? this.HttpContext!.Request.Headers["grpc-accept-encoding"].ToString() : this.HttpContext!.Request.Headers.AcceptEncoding.ToString();
+        byte compressedFlag = 0;
         if (acceptEncoding.Contains("zstd"))
         {
-            this.RequestData.Length = 0;
-            Error err = QiWa.Compress.ZstdCompressor.Compress(ref this.RequestData, this.ResponseBuffer.AsSpan());
+            this.RequestData.Length = IsGrpc ? 5 : 0;  // 重用临时缓冲区
+            Error err = QiWa.Compress.ZstdCompressor.Compress(ref this.RequestData, data);
             if (err.Err())
             {
                 Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
@@ -387,10 +393,11 @@ public abstract class ContextBase
             }
             responseBytes = this.RequestData.AsSpan().ToArray();
             Interlocked.Add(ref Counters.ZstdResponseBytesTotal, (ulong)responseBytes.Length);
+            compressedFlag = 1;
         }
         else if (acceptEncoding.Contains("gzip"))
         {
-            var (compressed, err) = QiWa.Compress.GzipCompressor.Compress(this.ResponseBuffer.AsSpan());
+            var (compressed, err) = QiWa.Compress.GzipCompressor.Compress(data, reserve: IsGrpc ? 5 : 0);
             if (err.Err())
             {
                 Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
@@ -408,11 +415,23 @@ public abstract class ContextBase
             }
             responseBytes = this.RequestData.AsSpan().ToArray();
             Interlocked.Add(ref Counters.GzipResponseBytesTotal, (ulong)responseBytes.Length);
+            compressedFlag = 1;
         }
         else
         {
             responseBytes = this.ResponseBuffer.AsSpan().ToArray();
             Interlocked.Add(ref Counters.NotCompressedResponseBytesTotal, (ulong)responseBytes.Length);
+        }
+        //
+        if (IsGrpc)
+        {
+            // 填充 grpc 的头部
+            UInt32 l = (UInt32)responseBytes.Length;
+            responseBytes[4] = (byte)(l >> 24);
+            responseBytes[3] = (byte)((l >> 16) & 0xFF);
+            responseBytes[2] = (byte)((l >> 8) & 0xFF);
+            responseBytes[1] = (byte)(l);
+            responseBytes[0] = compressedFlag;
         }
         return (responseBytes, default);
     }
