@@ -350,6 +350,8 @@ public abstract class ContextBase
 
     const int GrpcHeaderLength = 5;
 
+    // public abstract TRequest GetRequest<TRequest>() where TRequest : struct;
+
     public (byte[]?, Error) Encode<TResponse>(ref readonly TResponse rsp) where TResponse : struct, QiWa.Common.IEncoder
     {
         Debug.Assert(ResponseBuffer.Length == 0);
