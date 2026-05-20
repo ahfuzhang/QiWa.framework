@@ -168,6 +168,7 @@ public abstract class ContextBase
     public CompressType CompressType;
     public bool IsGrpc;  // 请求来自 grpc 协议
     public RentedBuffer ResponseBuffer = new RentedBuffer(ServerConfig.DefaultRequestSize);
+    public string ContentType;  // 这个字段使用得非常频繁，所以保存下来
 
     // ThreadLocal
     internal static readonly ThreadLocal<Counters> _threadLocal =
@@ -228,6 +229,7 @@ public abstract class ContextBase
         CompressType = CompressType.NotCompressed;
         ResponseBuffer.Length = 0;
         IsGrpc = false;
+        ContentType = "";
     }
 
     public void Dispose()
@@ -644,17 +646,20 @@ public abstract class ContextBase
     public Error InitFromHttp(HttpContext httpContext)
     {
         this.HttpContext = httpContext;
+        this.ContentType = httpContext.Request.ContentType ?? "";
         // 初始化 logger
         var tempLogger = Logger.Get();
         L = tempLogger.WithFields(
             Field.String("path"u8, httpContext.Request.Path.Value ?? ""),
             Field.String("method"u8, httpContext.Request.Method),
             Field.String("protocol"u8, httpContext.Request.Protocol),
+            Field.String("ContentType"u8, this.ContentType),
             Field.String(
                 (httpContext.Request.HttpContext.Connection.RemoteIpAddress?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
                     ? "client_ipv6"u8 : "client_ipv4"u8,
                 httpContext.Request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "")
         // todo: request id, client ip
+        // todo: 增加 grpc 的上报
         );
         Logger.Return(tempLogger);
         // todo: metrics 上报

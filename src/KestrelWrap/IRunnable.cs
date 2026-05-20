@@ -5,7 +5,7 @@ using QiWa.Common;
 /// <summary>
 /// 要求实现 Run() 方法
 /// </summary>
-public interface IRunable
+public interface IRunnable
 {
     /// <summary>
     /// 实现 Run 方法
