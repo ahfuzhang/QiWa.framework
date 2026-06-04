@@ -11,5 +11,5 @@ public interface IRunnable
     /// 实现 Run 方法
     /// </summary>
     /// <returns>Error 对象，运行时是否发生错误</returns>
-    ValueTask<Error> Run();
+    ValueTask<Error> RunAsync();
 }

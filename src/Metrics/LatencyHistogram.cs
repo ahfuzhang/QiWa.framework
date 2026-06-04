@@ -14,7 +14,7 @@ using QiWa.Common;
 /// 使用方式：在请求开始前调用 Stopwatch.GetTimestamp() 获取 startTimestamp，
 /// 请求处理完成后调用 ReportLatency(startTimestamp) 即可。
 /// </summary>
-public unsafe struct LatencyHistogram : IMetricFormatter
+public struct LatencyHistogram : IMetricFormatter
 {
     /// <summary>桶的总数量</summary>
     public const int BucketCount = 34;
@@ -41,8 +41,11 @@ public unsafe struct LatencyHistogram : IMetricFormatter
         12783403L, 19175105L, 28762658L, 43143988L, 64715982L
     ];
 
-    /// <summary>34 个桶的请求计数器，以 fixed 数组存储</summary>
-    private fixed ulong _buckets[BucketCount];
+    [System.Runtime.CompilerServices.InlineArray(BucketCount)]
+    private struct BucketArray { private ulong _element; }
+
+    /// <summary>34 个桶的请求计数器</summary>
+    private BucketArray _buckets;
 
     /// <summary>自首次调用以来，所有请求延迟的微秒累计总量</summary>
     public ulong LatencyUsTotal;
@@ -73,10 +76,7 @@ public unsafe struct LatencyHistogram : IMetricFormatter
         Interlocked.Add(ref RequestCount, 1UL);
 
         var idx = FindBucket(elapsedUs);
-        fixed (ulong* ptr = _buckets)
-        {
-            Interlocked.Add(ref ptr[idx], 1UL);
-        }
+        Interlocked.Add(ref _buckets[idx], 1UL);
     }
 
     // 公式推导：桶 k 覆盖 [100*1.5^k, 100*1.5^(k+1))，故 k = floor(log(x/100) / log(1.5))
@@ -102,7 +102,7 @@ public unsafe struct LatencyHistogram : IMetricFormatter
     /// 将 histogram 数据格式化为 Prometheus text format，追加写入 buf。
     /// 输出累积桶计数（le=...）、{MetricName}_sum 和 {MetricName}_count。
     /// </summary>
-    public void ToPrometheusText(ref RentedBuffer buf)
+    public readonly void ToPrometheusText(ref RentedBuffer buf)
     {
         bool hasLabels = !string.IsNullOrEmpty(Labels);
 
@@ -201,10 +201,7 @@ public unsafe struct LatencyHistogram : IMetricFormatter
     {
         for (int i = 0; i < BucketCount; i++)
         {
-            fixed (ulong* ptr = _buckets)
-            {
-                ptr[i] += src._buckets[i];
-            }
+            _buckets[i] += src._buckets[i];
         }
         LatencyUsTotal += src.LatencyUsTotal;
         RequestCount += src.RequestCount;
@@ -214,10 +211,7 @@ public unsafe struct LatencyHistogram : IMetricFormatter
     {
         for (int i = 0; i < BucketCount; i++)
         {
-            fixed (ulong* ptr = _buckets)
-            {
-                ptr[i] = 0;
-            }
+            _buckets[i] = 0;
         }
         LatencyUsTotal = 0;
         RequestCount = 0;

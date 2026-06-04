@@ -26,7 +26,7 @@ public class DebugUtilsTests
     public void GetExceptionLocation_NullException_ReturnsEmpty()
     {
         // null is passed despite non-nullable annotation to exercise the guard
-        var result = DebugUtils.GetExceptionLocation(null!);
+        var result = Utils.GetExceptionLocation(null!);
         Assert.Equal(string.Empty, result);
     }
 
@@ -45,7 +45,7 @@ public class DebugUtilsTests
     {
         var ex = new Exception("constructed but never thrown");
         // _stackTrace is null → StackTrace has no frames
-        var result = DebugUtils.GetExceptionLocation(ex);
+        var result = Utils.GetExceptionLocation(ex);
         Assert.Equal(string.Empty, result);
     }
 
@@ -72,7 +72,7 @@ public class DebugUtilsTests
         }
 
         Assert.NotNull(ex);
-        var result = DebugUtils.GetExceptionLocation(ex!);
+        var result = Utils.GetExceptionLocation(ex!);
 
         // In a debug build with PDB the result must contain both tokens.
         Assert.Contains("file=", result, StringComparison.Ordinal);
@@ -145,7 +145,7 @@ public class DebugUtilsTests
         if (allFramesLackFileInfo)
         {
             // Full branch 4: every frame has no file info → empty string
-            var result = DebugUtils.GetExceptionLocation(ex);
+            var result = Utils.GetExceptionLocation(ex);
             Assert.Equal(string.Empty, result);
         }
         else
@@ -154,7 +154,7 @@ public class DebugUtilsTests
             // has file info – branch 3 is hit instead.  This only happens when the
             // .NET runtime injects helper frames with symbol info.
             // We still assert the method returns the expected non-empty value.
-            var result = DebugUtils.GetExceptionLocation(ex);
+            var result = Utils.GetExceptionLocation(ex);
             Assert.Contains("file=", result, StringComparison.Ordinal);
         }
     }

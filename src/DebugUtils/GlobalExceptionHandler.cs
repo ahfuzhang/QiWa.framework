@@ -65,6 +65,15 @@ public static class GlobalExceptionHandler
     }
 
     /// <summary>
+    /// 停止看门狗定时器，释放资源。通常在应用程序退出前调用，或在测试中替换为无操作以避免干扰测试流程。
+    /// </summary>
+    public static void StopWatchdog()
+    {
+        _watchdog?.Dispose();
+        _watchdog = null;
+    }
+
+    /// <summary>
     /// 打印未捕获的异常信息，使用 ConsoleLogger 输出结构化日志。
     /// 若日志库尚未初始化则回退到 Console.Error。
     /// 通过原子操作保证仅输出一次，之后调用 Environment.Exit 终止进程。

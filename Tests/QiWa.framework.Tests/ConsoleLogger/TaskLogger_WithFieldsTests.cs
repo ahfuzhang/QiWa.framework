@@ -4,7 +4,8 @@ using Xunit;
 namespace Tests.ConsoleLogger;
 
 /// <summary>
-/// Prompt intent: 为 TaskLogger.WithFields 的全部重载补全测试，只修改测试代码，并覆盖空前缀与已存在前缀两条分支。
+/// Prompt intent: 为 TaskLogger.WithFields 的全部重载补全测试，覆盖空前缀、已存在前缀、
+/// 以及多层链式继承三条分支，确保子 logger 能正确继承父 logger 的字段前缀。
 /// </summary>
 public class TaskLogger_WithFieldsTests : TestBase
 {
@@ -59,7 +60,8 @@ public class TaskLogger_WithFieldsTests : TestBase
     }
 
     /// <summary>
-    /// 意图：覆盖当前文件在已有前缀下的全部重载，验证新增字段会以逗号拼接在父级前缀后面。
+    /// 意图：覆盖当前文件在已有前缀下的全部重载，验证新增字段会以逗号拼接在父级前缀后面，
+    /// 并且父级的 "seed" 字段也必须出现在子 logger 的输出中（前缀继承）。
     /// </summary>
     [Theory]
     [MemberData(nameof(FieldCounts))]
@@ -85,7 +87,8 @@ public class TaskLogger_WithFieldsTests : TestBase
                     var output = string.Join("\n", lines);
                     var normalizedOutput = NormalizeOutput(output);
 
-                    // WithFields does not inherit parent prefix; seed only lives in parentLogger.
+                    // 子 logger 必须继承父 logger 的 "seed" 字段前缀
+                    Assert.Contains("\"seed\":\"existing\"", output);
                     AssertContainsFields(output, fieldCount);
                     Assert.Contains("\"msg\":\"existing-prefix\"", output);
                     Assert.Contains("\"app\":\"test\"", normalizedOutput);
@@ -99,6 +102,63 @@ public class TaskLogger_WithFieldsTests : TestBase
             finally
             {
                 Logger.Return(parentLogger);
+            }
+        }
+        finally
+        {
+            Logger.Return(rootLogger);
+        }
+    }
+
+    /// <summary>
+    /// 意图：验证多层链式 WithFields 调用时，孙 logger 同时包含祖父和父的全部前缀字段。
+    /// 这是之前测试的漏洞所在：只测了一层继承，未覆盖链式场景。
+    /// </summary>
+    [Fact]
+    public void WithFields_ChainedCalls_InheritAllAncestorPrefixes()
+    {
+        var rootLogger = Logger.Get();
+
+        try
+        {
+            var grandparentLogger = rootLogger.WithFields(Field.String("gp"u8, "grandparent"));
+
+            try
+            {
+                var parentLogger = grandparentLogger.WithFields(Field.String("p"u8, "parent"));
+
+                try
+                {
+                    var childLogger = parentLogger.WithFields(Field.String("c"u8, "child"));
+
+                    try
+                    {
+                        Logger.SetLevel(LogLevel.Info);
+                        childLogger.Info(Field.String("msg"u8, "chain-test"));
+
+                        var lines = GetCapturedLines();
+                        AssertAllLinesAreValidJson(lines);
+                        var output = string.Join("\n", lines);
+
+                        // 孙 logger 的输出必须同时包含祖父、父、自身三层的字段
+                        Assert.Contains("\"gp\":\"grandparent\"", output);
+                        Assert.Contains("\"p\":\"parent\"", output);
+                        Assert.Contains("\"c\":\"child\"", output);
+                        Assert.Contains("\"msg\":\"chain-test\"", output);
+                    }
+                    finally
+                    {
+                        Logger.Return(childLogger);
+                    }
+                }
+                finally
+                {
+                    Logger.Return(parentLogger);
+                }
+            }
+            finally
+            {
+                Logger.Return(grandparentLogger);
             }
         }
         finally

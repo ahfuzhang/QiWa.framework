@@ -316,25 +316,27 @@ public abstract class ContextBase
     {
         // 下面进行数据反序列化
         Error err;
-        string contentType = this.HttpContext!.Request.ContentType!.ToString();
+        string contentType = this.HttpContext!.Request.ContentType!;
         if (contentType.StartsWith("application/json") || contentType.StartsWith("application/grpc+json"))
         {
             // 解析 JSON 数据到 Request 对象
             this.SerializeType = SerializeType.JSON;
-            err = req.FromJSON(reqBytes);
+            err = req.FromJSON(reqBytes!);
             if (err.Err())
             {
                 Interlocked.Increment(ref Counters.HttpJsonDecodeErrorsTotal);
                 this.HttpContext!.Response.StatusCode = 400;
                 return Error.WithLoc(code: 400, message: "Failed to parse JSON: " + err.Message);
             }
-            Interlocked.Add(ref Counters.JsonRequestBytesTotal, (ulong)reqBytes.Length);
+#pragma warning disable CA1062  // reqBytes 不可能为 null
+            Interlocked.Add(ref Counters.JsonRequestBytesTotal, (ulong)reqBytes!.Length);
+#pragma warning restore CA1062
             return default;
         }
         if (contentType.StartsWith("application/protobuf") || contentType.StartsWith("application/grpc"))
         {
             this.SerializeType = SerializeType.Protobuf;
-            err = req.FromProtobuf(reqBytes);
+            err = req.FromProtobuf(reqBytes!);
             if (err.Err())
             {
                 Interlocked.Increment(ref Counters.HttpProtobufDecodeErrorsTotal);
@@ -378,9 +380,9 @@ public abstract class ContextBase
         }
         ReadOnlySpan<byte> data = IsGrpc ? this.ResponseBuffer.Data.AsSpan(GrpcHeaderLength, this.ResponseBuffer.Length - GrpcHeaderLength) : this.ResponseBuffer.AsSpan();  // 序列化后的数据
         byte[]? responseBytes;
-        string acceptEncoding = IsGrpc ? this.HttpContext!.Request.Headers["grpc-accept-encoding"].ToString() : this.HttpContext!.Request.Headers.AcceptEncoding.ToString();
+        string acceptEncoding = IsGrpc ? this.HttpContext!.Request.Headers.GrpcAcceptEncoding.ToString() : this.HttpContext!.Request.Headers.AcceptEncoding.ToString();
         byte compressedFlag = 0;
-        if (acceptEncoding.Contains("zstd"))
+        if (acceptEncoding.Contains("zstd", StringComparison.OrdinalIgnoreCase))
         {
             this.RequestData.Length = IsGrpc ? GrpcHeaderLength : 0;  // 重用临时缓冲区
             Error err = QiWa.Compress.ZstdCompressor.Compress(ref this.RequestData, data);
@@ -391,7 +393,7 @@ public abstract class ContextBase
             }
             if (IsGrpc)
             {
-                this.HttpContext!.Response.Headers["grpc-encoding"] = "zstd";
+                this.HttpContext!.Response.Headers.GrpcEncoding = "zstd";
             }
             else
             {
@@ -401,7 +403,7 @@ public abstract class ContextBase
             Interlocked.Add(ref Counters.ZstdResponseBytesTotal, (ulong)responseBytes.Length);
             compressedFlag = 1;
         }
-        else if (acceptEncoding.Contains("gzip"))
+        else if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
         {
             var (compressed, err) = QiWa.Compress.GzipCompressor.Compress(data, reserve: IsGrpc ? GrpcHeaderLength : 0);
             if (err.Err())
@@ -413,7 +415,7 @@ public abstract class ContextBase
             this.RequestData = compressed;
             if (IsGrpc)
             {
-                this.HttpContext!.Response.Headers["grpc-encoding"] = "gzip";
+                this.HttpContext!.Response.Headers.GrpcEncoding = "gzip";
             }
             else
             {
@@ -442,7 +444,7 @@ public abstract class ContextBase
         return (responseBytes, default);
     }
 
-    public async Task<Error> ReadRequest()
+    public async Task<Error> ReadRequestAsync()
     {
         Debug.Assert(RawRequest.Data != null);
         Debug.Assert(RawRequest.Length == 0);
@@ -557,7 +559,7 @@ public abstract class ContextBase
             return (bytes, default);
         }
         // 进行解压缩操作
-        var grpcEncoding = this.HttpContext!.Request.Headers["grpc-encoding"].ToString();
+        var grpcEncoding = this.HttpContext!.Request.Headers.GrpcEncoding.ToString();
         if (grpcEncoding.Contains("zstd", StringComparison.CurrentCulture))
         {
             Debug.Assert(RequestData.Data != null);
@@ -646,7 +648,9 @@ public abstract class ContextBase
     public Error InitFromHttp(HttpContext httpContext)
     {
         this.HttpContext = httpContext;
-        this.ContentType = httpContext.Request.ContentType ?? "";
+#pragma warning disable CA1062
+        this.ContentType = httpContext!.Request.ContentType ?? "";
+#pragma warning restore CA1062
         // 初始化 logger
         var tempLogger = Logger.Get();
         L = tempLogger.WithFields(

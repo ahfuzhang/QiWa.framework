@@ -18,7 +18,10 @@ public enum LogLevel
     Debug
 }
 
-public class Logger
+/// <summary>
+/// 全局日志对象。使用日志前必须初始化这个对象
+/// </summary>
+public sealed class Logger : IDisposable
 {
     internal static Logger? Instance;  // 全局的日志对象
 
@@ -147,10 +150,11 @@ public class Logger
         Logger.Instance.pool.Return(l);
     }
 
-    internal void Dispose()
+    public void Dispose()
     {
         LoggerToken.Cancel();
         LoggerToken.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     public static void Shutdown()
@@ -195,6 +199,10 @@ public class Logger
     /// <returns>对应的 <see cref="LogLevel"/> 枚举值。</returns>
     public static LogLevel ParseLogLevel(string level)
     {
+        if (string.IsNullOrWhiteSpace(level))
+        {
+            return LogLevel.Warn; // 默认级别
+        }
         return level.ToLowerInvariant() switch
         {
             "fatal" => LogLevel.Fatal,
@@ -232,6 +240,10 @@ public class Logger
 
     public static string CutFilePath(string file)
     {
+        if (string.IsNullOrEmpty(file))
+        {
+            return string.Empty;
+        }
         for (int i = file.Length - 1; i >= 0; i--)
         {
             if (file[i] == '/' || file[i] == '\\')

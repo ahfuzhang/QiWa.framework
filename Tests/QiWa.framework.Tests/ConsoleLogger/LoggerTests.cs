@@ -348,6 +348,54 @@ public class LoggerTests : TestBase
         }
     }
 
+    /// <summary>
+    /// Prompt intent: 检查测试用例：当函数参数为对象类型时，需要有传入 null 值的测试用例。
+    /// string.IsNullOrWhiteSpace(null) is true, so the function returns the default level (Warn).
+    /// </summary>
+    [Fact]
+    public void ParseLogLevel_NullInput_ReturnsWarn()
+    {
+        var actual = Logger.ParseLogLevel(null!);
+        Assert.Equal(LogLevel.Warn, actual);
+    }
+
+    #endregion
+
+    #region CutFilePath Tests
+
+    /// <summary>
+    /// Prompt intent: 检查测试用例：当函数参数为对象类型时，需要有传入 null 值的测试用例。
+    /// Covers null, empty string, and normal path inputs for Logger.CutFilePath.
+    /// </summary>
+    [Fact]
+    public void CutFilePath_NullInput_ReturnsEmpty()
+    {
+        Assert.Equal(string.Empty, Logger.CutFilePath(null!));
+    }
+
+    [Fact]
+    public void CutFilePath_EmptyInput_ReturnsEmpty()
+    {
+        Assert.Equal(string.Empty, Logger.CutFilePath(string.Empty));
+    }
+
+    [Fact]
+    public void CutFilePath_ValidPaths_ReturnsFileName()
+    {
+        var testCases = new (string Input, string Expected)[]
+        {
+            ("/home/user/src/foo.cs",      "foo.cs"),
+            ("C:\\Users\\user\\bar.cs",    "bar.cs"),
+            ("no_separator",               "no_separator"),
+            ("/single/",                   string.Empty),
+        };
+
+        foreach (var (input, expected) in testCases)
+        {
+            Assert.Equal(expected, Logger.CutFilePath(input));
+        }
+    }
+
     #endregion
 
     #region LogDiagnosticsError Tests

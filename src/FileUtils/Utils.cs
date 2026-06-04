@@ -3,7 +3,7 @@ namespace QiWa.FileUtils;
 
 using QiWa.Common;
 
-public static class FileUtils
+public static class Utils
 {
     /// <summary>
     /// 如果一次性加载文件的所有内容到内存，所允许的支持的最大文件长度，100mb
@@ -19,11 +19,14 @@ public static class FileUtils
     ///   RentedBuffer: 文件内容的数组。数组是从内存池借用的，使用完成后需要归还。
     ///   Error
     /// </returns>
-    public static async Task<System.ValueTuple<RentedBuffer, Error>> ReadAllAndRentAync(string inputPath)
+    public static async Task<System.ValueTuple<RentedBuffer, Error>> ReadAllAndRentAsync(string inputPath)
     {
         int totalRead = 0;
         try
         {
+            // todo: 析构可能导致阻塞，因此要加上await 关键词，这真是个恶心的设计
+            // warning MA0042: Prefer using 'await using'
+#pragma warning disable MA0042
             using var stream = new FileStream(
                 inputPath,
                 FileMode.Open,
@@ -31,6 +34,7 @@ public static class FileUtils
                 FileShare.Read,
                 bufferSize: default_file_buffer_size,
                 useAsync: true);
+#pragma warning restore MA0042
             if (stream.Length > READ_ALL_ALLOWED_MAX_BYTES)
             {
                 return (default, Error.WithLoc(code: 1, message: $"Input file is too large: {stream.Length} bytes."));

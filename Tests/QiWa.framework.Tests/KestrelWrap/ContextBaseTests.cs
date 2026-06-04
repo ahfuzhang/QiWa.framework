@@ -375,7 +375,7 @@ public class ContextBaseTests
         byte[] payload = Utf8("known-body");
         using var ctx = CreateInitializedContext(CreateHttpContext(bodyBytes: payload, contentLength: payload.Length));
 
-        Error err = await ctx.ReadRequest();
+        Error err = await ctx.ReadRequestAsync();
 
         Assert.False(err.Err());
         Assert.Equal(payload, ctx.RawRequest.AsSpan().ToArray());
@@ -389,7 +389,7 @@ public class ContextBaseTests
         byte[] shortBody = Utf8("abc");
         using var ctx = CreateInitializedContext(CreateHttpContext(bodyBytes: shortBody, contentLength: 5));
 
-        Error err = await ctx.ReadRequest();
+        Error err = await ctx.ReadRequestAsync();
 
         Assert.True(err.Err());
         Assert.Equal(400U, err.Code);
@@ -408,7 +408,7 @@ public class ContextBaseTests
             contentLength: 6,
             requestAborted: cts.Token));
 
-        Error err = await ctx.ReadRequest();
+        Error err = await ctx.ReadRequestAsync();
 
         Assert.True(err.Err());
         Assert.Equal(408U, err.Code);
@@ -422,7 +422,7 @@ public class ContextBaseTests
         ResetAllCounters();
         using var ctx = CreateInitializedContext(CreateHttpContext(contentLength: ServerConfig.MaxRequestSize));
 
-        Error err = await ctx.ReadRequest();
+        Error err = await ctx.ReadRequestAsync();
 
         Assert.True(err.Err());
         Assert.Equal(413U, err.Code);
@@ -441,7 +441,7 @@ public class ContextBaseTests
         ctx.RawRequest.Dispose();
         ctx.RawRequest = new RentedBuffer(1);
 
-        Error err = await ctx.ReadRequest();
+        Error err = await ctx.ReadRequestAsync();
 
         Assert.False(err.Err());
         Assert.Equal(payload, ctx.RawRequest.AsSpan().ToArray());
@@ -460,7 +460,7 @@ public class ContextBaseTests
             contentLength: null,
             requestAborted: cts.Token));
 
-        Error err = await ctx.ReadRequest();
+        Error err = await ctx.ReadRequestAsync();
 
         Assert.True(err.Err());
         Assert.Equal(408U, err.Code);
@@ -476,7 +476,7 @@ public class ContextBaseTests
             bodyStream: new ChunkedPayloadStream(new byte[] { 1, 2, 3, 4 }, chunkSize: 8192, totalBytes: ServerConfig.MaxRequestSize),
             contentLength: null));
 
-        Error err = await ctx.ReadRequest();
+        Error err = await ctx.ReadRequestAsync();
 
         Assert.True(err.Err());
         Assert.Equal(413U, err.Code);
@@ -594,7 +594,7 @@ public class ContextBaseTests
         {
             using var ctx = new ContextBaseTestContext();
             ctx.InitFromHttp(httpContext);
-            Error err = await ctx.ReadRequest().ConfigureAwait(false);
+            Error err = await ctx.ReadRequestAsync().ConfigureAwait(false);
             httpContext.Response.Headers["X-Observed-Content-Length"] = httpContext.Request.ContentLength?.ToString() ?? "null";
             if (err.Err())
             {

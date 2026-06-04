@@ -5,7 +5,7 @@ using System.Diagnostics;
 /// <summary>
 /// 提供一些调试相关的工具函数，比如获取异常发生的位置等
 /// </summary>
-public static class DebugUtils
+public static class Utils
 {
     /// <summary>
     /// 获取异常发生的位置，返回文件名和行号等信息。如果无法获取到位置信息，则返回空字符串。

@@ -69,7 +69,7 @@ public class StringUtilsTests
 
         foreach (var tc in testCases)
         {
-            var (result, err) = StringUtils.ParseBufferSize(tc.Input);
+            var (result, err) = Utils.ParseBufferSize(tc.Input);
             Assert.False(err.Err(), $"[{tc.Name}] unexpected error: code={err.Code} msg={err.Message}");
             Assert.Equal(tc.Expected, result);
         }
@@ -102,10 +102,26 @@ public class StringUtilsTests
 
         foreach (var tc in testCases)
         {
-            var (result, err) = StringUtils.ParseBufferSize(tc.Input);
+            var (result, err) = Utils.ParseBufferSize(tc.Input);
             Assert.True(err.Err(),  $"[{tc.Name}] expected Err()=true but got false");
             Assert.Equal(1u, err.Code);
             Assert.Equal(0L, result);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Null input → same Error code 1 (string.IsNullOrWhiteSpace handles null)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Prompt intent: 检查测试用例：当函数参数为对象类型时，需要有传入 null 值的测试用例。
+    /// </summary>
+    [Fact]
+    public void ParseBufferSize_NullInput_ReturnsError1()
+    {
+        var (result, err) = Utils.ParseBufferSize(null!);
+        Assert.True(err.Err(), "null input should return an error");
+        Assert.Equal(1u, err.Code);
+        Assert.Equal(0L, result);
     }
 }

@@ -102,7 +102,7 @@ public class FileUtilsTests : IDisposable
 
         foreach (var tc in testCases)
         {
-            var (buf, err) = await FileUtils.ReadAllAndRentAync(tc.GetPath());
+            var (buf, err) = await Utils.ReadAllAndRentAsync(tc.GetPath());
             Assert.True(err.Err(),  $"[{tc.Name}] expected Err()=true but got false");
             Assert.Null(buf.Data);
             Assert.Equal(tc.ExpectedCode, err.Code);
@@ -118,7 +118,7 @@ public class FileUtilsTests : IDisposable
         var content = "Hello, QiWa Framework!"u8.ToArray();
         var path    = CreateTempFile(content);
 
-        var (buf, err) = await FileUtils.ReadAllAndRentAync(path);
+        var (buf, err) = await Utils.ReadAllAndRentAsync(path);
         try
         {
             Assert.False(err.Err(), $"Expected no error, got code={err.Code}: {err.Message}");
@@ -140,7 +140,7 @@ public class FileUtilsTests : IDisposable
         for (int i = 0; i < content.Length; i++) content[i] = (byte)i;
         var path = CreateTempFile(content);
 
-        var (buf, err) = await FileUtils.ReadAllAndRentAync(path);
+        var (buf, err) = await Utils.ReadAllAndRentAsync(path);
         try
         {
             Assert.False(err.Err(), $"Expected no error, got code={err.Code}: {err.Message}");
@@ -150,6 +150,22 @@ public class FileUtilsTests : IDisposable
         {
             buf.Dispose();
         }
+    }
+
+    // ── null path ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Prompt intent: 检查测试用例：当函数参数为对象类型时，需要有传入 null 值的测试用例。
+    /// Passing null as the path triggers ArgumentNullException inside FileStream,
+    /// which is caught by the outer catch → code 4.
+    /// </summary>
+    [Fact]
+    public async Task ReadAllAndRentAync_NullPath_ReturnsCode4()
+    {
+        var (buf, err) = await Utils.ReadAllAndRentAsync(null!);
+        Assert.True(err.Err(), "null path should return an error");
+        Assert.Null(buf.Data);
+        Assert.Equal(4u, err.Code);
     }
 
     [Fact]
@@ -163,7 +179,7 @@ public class FileUtilsTests : IDisposable
         new Random(42).NextBytes(content);
         var path = CreateTempFile(content);
 
-        var (buf, err) = await FileUtils.ReadAllAndRentAync(path);
+        var (buf, err) = await Utils.ReadAllAndRentAsync(path);
         try
         {
             Assert.False(err.Err(), $"Expected no error, got code={err.Code}: {err.Message}");

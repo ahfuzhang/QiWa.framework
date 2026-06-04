@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using QiWa.Common;
 using QiWa.Compress;
-using static QiWa.DebugUtils.DebugUtils;
+using static QiWa.DebugUtils.Utils;
 using static QiWa.Syscall.NativeWrite;
 
 internal sealed class BufferWrapper  // 包装一层是为了做原子轮换
@@ -20,13 +20,17 @@ internal sealed class BufferWrapper  // 包装一层是为了做原子轮换
     }
 }
 
-public partial class ThreadLocalLogger
+public partial class ThreadLocalLogger : IDisposable
 {
     private const int ReservedBufferLen = 1024;  // 预留的 buffer 长度
     internal BufferWrapper Buffer;  // 便于做原子轮换. 这个线程上的日志缓冲区
     private readonly Task timerTask;  // 定时器 Task
     private readonly PeriodicTimer flushTimer;  // 定时器
-    private readonly object locker = new object();  // 锁
+#if NET9_0_OR_GREATER
+    private readonly System.Threading.Lock locker = new();  // 锁
+#else
+    private readonly object locker = new();  // 锁
+#endif
     private readonly HttpClient? httpClient;  // 当使用 jsonline 模式推送日志时，此对象有效
 
     /// <summary>
@@ -49,16 +53,26 @@ public partial class ThreadLocalLogger
         }
         this.Buffer = new BufferWrapper(Logger.Instance.LogBufferSize);
         flushTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(Logger.Instance.FlushIntervalMs));
-        timerTask = Task.Run(TimerLoop);
+        timerTask = Task.Run(TimerLoopAsync);
         if (Logger.Instance.JsonLineUrl != "")
         {
             httpClient = new HttpClient();
         }
     }
 
-    ~ThreadLocalLogger()
+    // info MA0055: Do not use finalizer  => 析构函数调用 Dispose 是冗余且危险的
+    // ~ThreadLocalLogger()
+    // {
+    //     Dispose();
+    // }
+
+    public void Dispose()
     {
         Buffer.Rented.Dispose();
+        flushTimer.Dispose();
+        timerTask.Dispose();
+        httpClient?.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
@@ -115,7 +129,7 @@ public partial class ThreadLocalLogger
         _ = Task.Run(async () =>
         {
             // ConfigureAwait: 恢复执行时直接在线程池的任意线程上继续，不切换上下文
-            await writeLog(wrapper).ConfigureAwait(false);
+            await writeLogAsync(wrapper).ConfigureAwait(false);
             wrapper = null;
         });
     }
@@ -139,7 +153,7 @@ public partial class ThreadLocalLogger
 
     private static readonly System.Net.Http.Headers.MediaTypeHeaderValue mediaType = new MediaTypeHeaderValue("application/json");
 
-    private async Task<Error> writeJsonline(BufferWrapper wrapper)
+    private async Task<Error> writeJsonlineAsync(BufferWrapper wrapper)
     {
         System.Diagnostics.Debug.Assert(httpClient != null);
         System.Diagnostics.Debug.Assert(Logger.Instance != null);
@@ -178,14 +192,14 @@ public partial class ThreadLocalLogger
         }
     }
 
-    private async Task writeLog(BufferWrapper wrapper)
+    private async Task writeLogAsync(BufferWrapper wrapper)
     {
         System.Diagnostics.Debug.Assert(Logger.Instance != null);
         try
         {
             if (Logger.Instance.JsonLineUrl != "")
             {
-                var err = await writeJsonline(wrapper).ConfigureAwait(false);
+                var err = await writeJsonlineAsync(wrapper).ConfigureAwait(false);
                 if (!err.Err())
                 {
                     return;
@@ -207,7 +221,7 @@ public partial class ThreadLocalLogger
         }
     }
 
-    private async Task TimerLoop()
+    private async Task TimerLoopAsync()
     {
         System.Diagnostics.Debug.Assert(Logger.Instance != null);
         try
@@ -228,7 +242,7 @@ public partial class ThreadLocalLogger
                 }
                 _ = Task.Run(async () =>
                 {
-                    await writeLog(wrapper).ConfigureAwait(false);
+                    await writeLogAsync(wrapper).ConfigureAwait(false);
                     wrapper = null;
                 });
             }

@@ -62,7 +62,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AsyncFixer" Version="2.1.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Meziantou.Analyzer" Version="3.0.98">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.6" />
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="QiWa.Common" Version="0.1.6" />
     <PackageReference Include="protobuf-net" Version="3.2.56" /> <!-- todo:  这个库看起来不必要了 -->
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />

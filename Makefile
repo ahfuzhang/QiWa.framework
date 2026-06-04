@@ -2,7 +2,7 @@
 COVERAGE_RAW    = build/coverage-raw
 COVERAGE_REPORT = build/coverage-report
 PACKAGE_ID      = QiWa.framework
-PACKAGE_VERSION ?= 0.4.7
+PACKAGE_VERSION ?= 0.5.0
 PACKAGE_OUTPUT  = bin/Release
 BUILD_CONFIGURATION ?= Debug
 NUGET_PACK_ARGS ?=
@@ -54,3 +54,14 @@ push:
 	dotnet nuget push $(PACKAGE_OUTPUT)/$(PACKAGE_ID).$(PACKAGE_VERSION).nupkg \
 		--api-key $(KEY) \
 		--source https://api.nuget.org/v3/index.json
+
+lint:
+	dotnet format whitespace QiWa.framework.csproj --verify-no-changes --verbosity diagnostic  && \
+	dotnet format style QiWa.framework.csproj --severity warn --verify-no-changes --verbosity diagnostic  && \
+	dotnet format analyzers QiWa.framework.csproj --verify-no-changes --severity info --verbosity diagnostic 
+	# dotnet format analyzers QiWa.framework.csproj --verify-no-changes --severity warn --verbosity diagnostic 
+
+install_analyzer:
+	dotnet add QiWa.framework.csproj package Microsoft.VisualStudio.Threading.Analyzers
+	dotnet add QiWa.framework.csproj package AsyncFixer
+	dotnet add QiWa.framework.csproj package Meziantou.Analyzer

@@ -5,7 +5,7 @@ using QiWa.Common;
 /// <summary>
 /// 提供 zstd 压缩和解压功能，基于 ZstdSharp 库实现。
 /// </summary>
-public class ZstdCompressor
+public static class ZstdCompressor
 {
     [ThreadStatic]
     private static ZstdSharp.Compressor? _compressor;
@@ -75,7 +75,7 @@ public class ZstdCompressor
         {
             size = ZstdSharp.Decompressor.GetDecompressedSize(compressed);
         }
-        catch (System.Exception ex)
+        catch (ZstdSharp.ZstdException ex)
         {
             return (default, Error.WithLoc(code: 3, message: $"GetDecompressedSize fail: {ex.Message}"));
         }
@@ -86,7 +86,7 @@ public class ZstdCompressor
         {
             success = decompressor.TryUnwrap(compressed, dst.Data.AsSpan(), out written);
         }
-        catch (System.Exception ex)
+        catch (ZstdSharp.ZstdException ex)
         {
             dst.Dispose();
             return (default, Error.WithLoc(code: 4, message: $"decompressor.TryUnwrap fail: {ex.Message}"));
@@ -116,7 +116,7 @@ public class ZstdCompressor
         {
             size = ZstdSharp.Decompressor.GetDecompressedSize(compressed);
         }
-        catch (System.Exception ex)
+        catch (ZstdSharp.ZstdException ex)
         {
             return Error.WithLoc(code: 3, message: $"GetDecompressedSize fail: {ex.Message}");
         }
@@ -127,7 +127,7 @@ public class ZstdCompressor
         {
             success = decompressor.TryUnwrap(compressed, dst.Data.AsSpan(dst.Length), out written);
         }
-        catch (System.Exception ex)
+        catch (ZstdSharp.ZstdException ex)
         {
             return Error.WithLoc(code: 4, message: $"decompressor.TryUnwrap fail: {ex.Message}");
         }

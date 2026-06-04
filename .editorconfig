@@ -16,12 +16,21 @@ root = true
 [*]
 indent_style = space
 charset = utf-8
+end_of_line = lf
 trim_trailing_whitespace = true
 insert_final_newline = true
 
 [*.cs]
 indent_size = 4
+indent_style = space
+# using 排序、移除无用 using
 dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# var 规则：按团队习惯调整
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
 
 # Don't use this. qualifier
 dotnet_style_qualification_for_field = false:suggestion
@@ -54,6 +63,152 @@ csharp_style_namespace_declarations = file_scoped
 
 # Brace settings
 csharp_prefer_braces = true # Prefer curly braces even for one line of code
+
+dotnet_diagnostic.IDE0005.severity = warning
+dotnet_diagnostic.IDE0055.severity = warning
+# 字段可以 readonly
+dotnet_diagnostic.IDE0044.severity = warning
+# private 成员未使用
+dotnet_diagnostic.IDE0051.severity = warning
+# private 字段已赋值但未使用
+dotnet_diagnostic.IDE0052.severity = warning
+dotnet_diagnostic.CA1822.severity = warning
+# 未使用参数
+dotnet_diagnostic.IDE0060.severity = warning
+dotnet_diagnostic.CA2000.severity = warning
+dotnet_diagnostic.CA1848.severity = warning
+# 类型成员可以设为 static
+dotnet_diagnostic.CA1822.severity = suggestion
+# 避免重复分配空数组
+dotnet_diagnostic.CA1825.severity = warning
+# 使用 ConfigureAwait，库项目建议启用；ASP.NET Core 应用项目可酌情关闭
+dotnet_diagnostic.CA2007.severity = suggestion
+# Dispose objects before losing scope
+dotnet_diagnostic.CA2000.severity = warning
+# 不要直接 throw ex，避免丢失栈
+dotnet_diagnostic.CA2200.severity = warning
+# 正确使用 ValueTask
+dotnet_diagnostic.CA2012.severity = warning
+# ILogger 使用 LoggerMessage delegate
+dotnet_diagnostic.CA1848.severity = suggestion
+# 使用 MemoryExtensions.Contains
+dotnet_diagnostic.CA1847.severity = suggestion
+# 优化 string.StartsWith / EndsWith / Contains 的比较方式
+dotnet_diagnostic.CA1307.severity = suggestion
+dotnet_diagnostic.CA1309.severity = suggestion
+
+# ------------------------------------------------------------
+# 安全类规则
+# ------------------------------------------------------------
+# Security 分类建议至少 warning
+dotnet_analyzer_diagnostic.category-Security.severity = warning
+# Reliability 分类建议 warning
+dotnet_analyzer_diagnostic.category-Reliability.severity = warning
+# Performance 分类建议 suggestion 或 warning
+dotnet_analyzer_diagnostic.category-Performance.severity = suggestion
+# Design 分类容易吵，先 suggestion
+dotnet_analyzer_diagnostic.category-Design.severity = suggestion
+# Maintainability 分类先 suggestion
+dotnet_analyzer_diagnostic.category-Maintainability.severity = suggestion
+# Globalization 分类对后端服务可能比较吵，先 suggestion
+dotnet_analyzer_diagnostic.category-Globalization.severity = suggestion
+# 库项目，建议更严格
+# public API 文档，是否启用看你是否要发布 NuGet 包
+dotnet_diagnostic.CS1591.severity = suggestion
+# 公共 API 设计类规则
+dotnet_diagnostic.CA1050.severity = warning
+# 对象可能为 null 的参数未进行 null 检查: 加上 ! 或者 if 检查
+#  或者去掉告警：#pragma warning disable CA1062  => #pragma warning restore CA1062
+dotnet_diagnostic.CA1062.severity = suggestion
+
+# IDisposable / 资源释放
+dotnet_diagnostic.CA1001.severity = warning
+dotnet_diagnostic.CA2000.severity = warning
+dotnet_diagnostic.CA2213.severity = warning
+# async / ValueTask
+dotnet_diagnostic.CA2007.severity = warning
+dotnet_diagnostic.CA2012.severity = warning
+# equality / hash code
+dotnet_diagnostic.CA2218.severity = warning
+
+# ------------------------------------------------------------
+# Microsoft.VisualStudio.Threading.Analyzers
+# ------------------------------------------------------------
+# 避免同步等待 Task：.Result / .Wait() / GetAwaiter().GetResult()
+dotnet_diagnostic.VSTHRD002.severity = warning
+# 避免 async void
+dotnet_diagnostic.VSTHRD100.severity = warning
+# async 方法中应调用 async 版本
+dotnet_diagnostic.VSTHRD103.severity = warning
+# 不要在同步方法里调用异步逻辑但不提供 async 版本
+dotnet_diagnostic.VSTHRD104.severity = suggestion
+# 避免 fire-and-forget Task，除非显式处理
+dotnet_diagnostic.VSTHRD110.severity = warning
+# 避免在锁内 await
+dotnet_diagnostic.VSTHRD200.severity = warning
+# ------------------------------------------------------------
+# AsyncFixer
+# ------------------------------------------------------------
+# 不必要的 async/await
+dotnet_diagnostic.AsyncFixer01.severity = suggestion
+# async 方法里阻塞调用，例如 .Result / .Wait()
+dotnet_diagnostic.AsyncFixer02.severity = warning
+# async void
+dotnet_diagnostic.AsyncFixer03.severity = warning
+# using block 中未 await 的 async 调用
+dotnet_diagnostic.AsyncFixer04.severity = warning
+# TaskFactory.StartNew 产生 Nested Task
+dotnet_diagnostic.AsyncFixer05.severity = warning
+# Task<T> 到 Task 的隐式转换，可能丢失结果
+dotnet_diagnostic.AsyncFixer06.severity = warning
+# ------------------------------------------------------------
+# Meziantou.Analyzer - async / Task / CancellationToken
+# ------------------------------------------------------------
+# 类库项目建议启用 ConfigureAwait(false)
+# ASP.NET Core 应用项目可降为 suggestion 或 none
+dotnet_diagnostic.MA0004.severity = suggestion
+# 不要在 async context 中使用阻塞调用
+dotnet_diagnostic.MA0042.severity = warning
+# 可以改成 async 方法
+dotnet_diagnostic.MA0045.severity = suggestion
+# 有 CancellationToken 时应传递
+dotnet_diagnostic.MA0040.severity = suggestion
+# await foreach 中传递 CancellationToken
+dotnet_diagnostic.MA0079.severity = suggestion
+# Dispose 前应 await task
+dotnet_diagnostic.MA0100.severity = warning
+# using statement 中应 await task
+dotnet_diagnostic.MA0129.severity = warning
+# async 调用结果应被观察
+dotnet_diagnostic.MA0134.severity = warning
+# 避免 async void delegate
+dotnet_diagnostic.MA0147.severity = warning
+# 避免 async void method
+dotnet_diagnostic.MA0155.severity = warning
+# 使用 Unwrap 而不是 await 两次
+dotnet_diagnostic.MA0152.severity = suggestion
+
+dotnet_diagnostic.MA0051.severity = warning  #  Method is too long
+MA0051.maximum_lines_per_method = 100  # 允许函数最多 100 行
+MA0051.maximum_statements_per_method = 80  # 允许函数最多 80 条语句
+
+# 减少告警
+dotnet_diagnostic.CA1805.severity = silent  # CA1805: Do not initialize unnecessarily
+dotnet_diagnostic.CA1051.severity = silent  # 成员变量建议 private  => 反模式，模仿 golang，直接访问成员即可
+dotnet_diagnostic.CA1031.severity = silent  # 不要捕获 System.Exception，除非你打算重新抛出 => 很难精准定位到一个库到底抛出了哪种异常
+dotnet_diagnostic.CA1310.severity = silent  # 不要忽略 string comparison => 服务器一般默认都是英语文化的，意义不大
+dotnet_diagnostic.MA0026.severity = silent  # todo 不要产生告警信息
+dotnet_diagnostic.MA0011.severity = silent  # long.TryParse 告警太多
+dotnet_diagnostic.MA0007.severity = silent  # Add comma after the last value 
+dotnet_diagnostic.MA0074.severity = silent  # Use an overload of 'EndsWith' that has a StringComparison parameter 
+dotnet_diagnostic.MA0076.severity = silent  # Do not use implicit culture-sensitive ToString in interpolated strings
+dotnet_diagnostic.MA0048.severity = silent  # File name must match type name
+dotnet_diagnostic.MA0006.severity = silent  # Use string.Equals instead of NotEquals operator
+dotnet_diagnostic.MA0003.severity = silent  # Name the parameter to improve code readability
+dotnet_diagnostic.MA0016.severity = silent  # Prefer using collection abstraction instead of implementation 
+dotnet_diagnostic.MA0002.severity = silent  # Use an overload that has a IEqualityComparer<string> or IComparer<string> parameter
+dotnet_diagnostic.MA0053.severity = silent  # Make class or record sealed
+
 
 [*.{xml,config,*proj,nuspec,props,resx,targets,yml,tasks}]
 indent_size = 2
@@ -109,9 +264,6 @@ dotnet_diagnostic.CA1725.severity = suggestion
 
 # CA1802: Use literals where appropriate
 dotnet_diagnostic.CA1802.severity = warning
-
-# CA1805: Do not initialize unnecessarily
-dotnet_diagnostic.CA1805.severity = warning
 
 # CA1810: Do not initialize unnecessarily
 dotnet_diagnostic.CA1810.severity = warning
