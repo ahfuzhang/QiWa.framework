@@ -41,6 +41,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Allow the test project to access internal members (e.g. CreateAsync factory overload) -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>QiWa.framework.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- 对应“运行 make pack 并没有生成 nuget 文件，请解决”：Tests 目录既不能参与主库编译，也不能被 pack 当作内容文件塞进 NuGet 包。 -->
     <Compile Remove="Tests\**" />
     <Compile Remove="Tests/**" />
@@ -85,5 +92,6 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="1.15.0-beta.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.0" />
+    <PackageReference Include="MySqlConnector" Version="2.6.1" />
   </ItemGroup>  
 </Project>

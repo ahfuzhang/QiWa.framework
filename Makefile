@@ -2,7 +2,7 @@
 COVERAGE_RAW    = build/coverage-raw
 COVERAGE_REPORT = build/coverage-report
 PACKAGE_ID      = QiWa.framework
-PACKAGE_VERSION ?= 0.5.0
+PACKAGE_VERSION ?= 0.6.0
 PACKAGE_OUTPUT  = bin/Release
 BUILD_CONFIGURATION ?= Debug
 NUGET_PACK_ARGS ?=
@@ -28,6 +28,24 @@ fmt:
 coverage:
 	rm -rf $(COVERAGE_RAW) $(COVERAGE_REPORT)
 	dotnet test Tests/QiWa.framework.Tests/QiWa.framework.Tests.csproj \
+		--verbosity minimal \
+		--collect:"XPlat Code Coverage" \
+		--results-directory $(COVERAGE_RAW)
+	which reportgenerator > /dev/null 2>&1 || \
+		dotnet tool install --global dotnet-reportgenerator-globaltool
+	reportgenerator \
+		"-reports:$(COVERAGE_RAW)/**/coverage.cobertura.xml" \
+		"-targetdir:$(COVERAGE_REPORT)" \
+		"-reporttypes:Html"
+	@echo ""
+	@echo "Coverage report: $(COVERAGE_REPORT)/index.html"
+
+# 使用真实的 mysql 服务器进行集成测试
+coverage_with_mysql:
+	rm -rf $(COVERAGE_RAW) $(COVERAGE_REPORT)
+	dotnet test \
+		-p:EnableIntegrationTests=true \
+		Tests/QiWa.framework.Tests/QiWa.framework.Tests.csproj \
 		--verbosity minimal \
 		--collect:"XPlat Code Coverage" \
 		--results-directory $(COVERAGE_RAW)

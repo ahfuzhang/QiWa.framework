@@ -9,6 +9,10 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(EnableIntegrationTests)' == 'true'">
+    <DefineConstants>$(DefineConstants);INTEGRATION_TESTS</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="QiWa.Common" Version="*" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

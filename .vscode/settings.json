@@ -1,6 +1,10 @@
 {
   "dotnet.defaultSolution": "QiWa.framework.slnx",
   "omnisharp.defaultLaunchSolution": "QiWa.framework.slnx",
+  "dotnet.useLegacyDotnetResolution": true,
+  "dotnetAcquisitionExtension.existingDotnetPath": [
+    "/usr/local/share/dotnet/dotnet"
+  ],
   "files.associations": {
     "Makefile_*": "makefile"
   },

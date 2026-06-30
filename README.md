@@ -8,7 +8,7 @@ This is the foundation library for the high-performance microservice framework Q
 * NuGet 地址：https://www.nuget.org/packages/QiWa.framework/
 
 ```bash
-dotnet add package QiWa.framework --version 0.4.7
+dotnet add package QiWa.framework --version 0.6.0
 ```
 
 ## 提供的组件
@@ -26,6 +26,8 @@ dotnet add package QiWa.framework --version 0.4.7
 * Metrics: 包装 ThreadLocal 的高性能的 Counter
   - MetricsBase: 包装 metrics 的格式化功能
   - LatencyHistogram: 用于接口延迟统计的 Histogram
+* Mysql
+  - 提供对 mysql 连接池的封装
 * StringUtils
 * Syscall
   - 封装 write() 系统调用
