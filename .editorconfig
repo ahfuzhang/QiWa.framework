@@ -208,7 +208,7 @@ dotnet_diagnostic.MA0003.severity = silent  # Name the parameter to improve code
 dotnet_diagnostic.MA0016.severity = silent  # Prefer using collection abstraction instead of implementation 
 dotnet_diagnostic.MA0002.severity = silent  # Use an overload that has a IEqualityComparer<string> or IComparer<string> parameter
 dotnet_diagnostic.MA0053.severity = silent  # Make class or record sealed
-
+dotnet_diagnostic.MA0018.severity = silent  # Do not declare static members on generic types (deprecated; use CA1000 instead)
 
 [*.{xml,config,*proj,nuspec,props,resx,targets,yml,tasks}]
 indent_size = 2

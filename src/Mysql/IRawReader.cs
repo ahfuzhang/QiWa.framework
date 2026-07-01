@@ -59,6 +59,13 @@ public interface IRawReader : IAsyncDisposable
 
     /// <summary>Returns the column value as <see cref="long"/>.</summary>
     long GetInt64(string columnName) => GetInt64(GetOrdinal(columnName));
+    // ── GetUInt64 ─────────────────────────────────────────────────────────────
+
+    /// <summary>Returns the column value as <see cref="ulong"/>.</summary>
+    ulong GetUInt64(int ordinal);
+
+    /// <summary>Returns the column value as <see cref="ulong"/>.</summary>
+    ulong GetUInt64(string columnName) => GetUInt64(GetOrdinal(columnName));
 
     // ── GetFloat ─────────────────────────────────────────────────────────────
 

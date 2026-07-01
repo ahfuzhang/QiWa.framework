@@ -33,53 +33,21 @@ public class RealMysqlTests
         " connection_time_out_seconds, command_timeout_seconds, options) " +
         "VALUES (@name, @host, @port, @user, @pwd, @db, @charset, @max_pool, @reset, @conn_timeout, @cmd_timeout, @options)";
 
-    private static readonly Dictionary<string, MySqlDbType> InsertParams = new()
-    {
-        ["@name"]        = MySqlDbType.VarChar,
-        ["@host"]        = MySqlDbType.VarChar,
-        ["@port"]        = MySqlDbType.Int32,
-        ["@user"]        = MySqlDbType.VarChar,
-        ["@pwd"]         = MySqlDbType.VarChar,
-        ["@db"]          = MySqlDbType.VarChar,
-        ["@charset"]     = MySqlDbType.VarChar,
-        ["@max_pool"]    = MySqlDbType.Int32,
-        ["@reset"]       = MySqlDbType.Bool,
-        ["@conn_timeout"]= MySqlDbType.Int32,
-        ["@cmd_timeout"] = MySqlDbType.Int32,
-        ["@options"]     = MySqlDbType.VarChar,
-    };
-
     // ── SELECT SQL ────────────────────────────────────────────────────────────
 
     private const string SelectSql =
         "SELECT data_source_id, data_source_name, data_source_host, data_source_port " +
         "FROM data_sources WHERE data_source_name = @name";
 
-    private static readonly Dictionary<string, MySqlDbType> SelectParams = new()
-    {
-        ["@name"] = MySqlDbType.VarChar,
-    };
-
     // ── UPDATE SQL ────────────────────────────────────────────────────────────
 
     private const string UpdateSql =
         "UPDATE data_sources SET data_source_host = @host WHERE data_source_name = @name";
 
-    private static readonly Dictionary<string, MySqlDbType> UpdateParams = new()
-    {
-        ["@host"] = MySqlDbType.VarChar,
-        ["@name"] = MySqlDbType.VarChar,
-    };
-
     // ── DELETE SQL ────────────────────────────────────────────────────────────
 
     private const string DeleteSql =
         "DELETE FROM data_sources WHERE data_source_name = @name";
-
-    private static readonly Dictionary<string, MySqlDbType> DeleteParams = new()
-    {
-        ["@name"] = MySqlDbType.VarChar,
-    };
 
     // ── COUNT SQL (用于验证行是否存在) ─────────────────────────────────────
 
@@ -106,31 +74,28 @@ public class RealMysqlTests
         }
     }
 
-    private static async Task RunCrudAsync(DbConnectionPool pool)
+    private static async Task RunCrudAsync(DbConnectionPool<MySqlConnectionWrapper, MySqlCommandWrapper, MySqlReaderWrapper> pool)
     {
         // ── Step 1: INSERT ────────────────────────────────────────────────────
         var (conn, getErr) = await pool.GetAsync().ConfigureAwait(true);
         Assert.False(getErr.Err(), $"GetAsync failed: {getErr.Message}");
         using (conn)
         {
-            var (rows, lastId, insErr) = await conn!.ExecuteNonQueryAsync(
-                InsertSql, InsertParams,
-                cmd =>
-                {
-                    cmd.SetParameterValue("@name",         TestDataSourceName);
-                    cmd.SetParameterValue("@host",         "192.168.1.100");
-                    cmd.SetParameterValue("@port",         3306);
-                    cmd.SetParameterValue("@user",         "test_user");
-                    cmd.SetParameterValue("@pwd",          "test_pwd");
-                    cmd.SetParameterValue("@db",           "test_db");
-                    cmd.SetParameterValue("@charset",      "utf8mb4");
-                    cmd.SetParameterValue("@max_pool",     10);
-                    cmd.SetParameterValue("@reset",        false);
-                    cmd.SetParameterValue("@conn_timeout", 15);
-                    cmd.SetParameterValue("@cmd_timeout",  30);
-                    cmd.SetParameterValue("@options",      "");
-                    return default;
-                }).ConfigureAwait(true);
+            var (rows, lastId, insErr) = await conn!.ExecuteNonQueryAsync(InsertSql,
+            [
+                new SqlParam { Name = "@name",         DataType = MySqlDbType.VarChar, Value = TestDataSourceName },
+                new SqlParam { Name = "@host",         DataType = MySqlDbType.VarChar, Value = "192.168.1.100" },
+                new SqlParam { Name = "@port",         DataType = MySqlDbType.Int32,   Value = 3306 },
+                new SqlParam { Name = "@user",         DataType = MySqlDbType.VarChar, Value = "test_user" },
+                new SqlParam { Name = "@pwd",          DataType = MySqlDbType.VarChar, Value = "test_pwd" },
+                new SqlParam { Name = "@db",           DataType = MySqlDbType.VarChar, Value = "test_db" },
+                new SqlParam { Name = "@charset",      DataType = MySqlDbType.VarChar, Value = "utf8mb4" },
+                new SqlParam { Name = "@max_pool",     DataType = MySqlDbType.Int32,   Value = 10 },
+                new SqlParam { Name = "@reset",        DataType = MySqlDbType.Bool,    Value = false },
+                new SqlParam { Name = "@conn_timeout", DataType = MySqlDbType.Int32,   Value = 15 },
+                new SqlParam { Name = "@cmd_timeout",  DataType = MySqlDbType.Int32,   Value = 30 },
+                new SqlParam { Name = "@options",      DataType = MySqlDbType.VarChar, Value = "" },
+            ]).ConfigureAwait(true);
 
             Assert.False(insErr.Err(), $"INSERT failed: {insErr.Message}");
             Assert.Equal(1, rows);
@@ -144,15 +109,16 @@ public class RealMysqlTests
         {
             string? host = null;
             long id = 0;
-            var (rowCount, selErr) = await conn!.ExecuteReaderAsync(
-                SelectSql, SelectParams,
-                cmd => { cmd.SetParameterValue("@name", TestDataSourceName); return default; },
-                reader =>
-                {
-                    id   = reader.GetInt64("data_source_id");
-                    host = reader.GetString("data_source_host");
-                    return default;
-                }).ConfigureAwait(true);
+            var (rowCount, selErr) = await conn!.ExecuteReaderAsync(SelectSql,
+            [
+                new SqlParam { Name = "@name", DataType = MySqlDbType.VarChar, Value = TestDataSourceName },
+            ],
+            reader =>
+            {
+                id   = reader.GetInt64("data_source_id");
+                host = reader.GetString("data_source_host");
+                return default;
+            }).ConfigureAwait(true);
 
             Assert.False(selErr.Err(), $"SELECT after INSERT failed: {selErr.Message}");
             Assert.Equal(1, rowCount);
@@ -165,14 +131,11 @@ public class RealMysqlTests
         Assert.False(getErr.Err());
         using (conn)
         {
-            var (rows, _, updErr) = await conn!.ExecuteNonQueryAsync(
-                UpdateSql, UpdateParams,
-                cmd =>
-                {
-                    cmd.SetParameterValue("@host", "10.0.0.1");
-                    cmd.SetParameterValue("@name", TestDataSourceName);
-                    return default;
-                }).ConfigureAwait(true);
+            var (rows, _, updErr) = await conn!.ExecuteNonQueryAsync(UpdateSql,
+            [
+                new SqlParam { Name = "@host", DataType = MySqlDbType.VarChar, Value = "10.0.0.1" },
+                new SqlParam { Name = "@name", DataType = MySqlDbType.VarChar, Value = TestDataSourceName },
+            ]).ConfigureAwait(true);
 
             Assert.False(updErr.Err(), $"UPDATE failed: {updErr.Message}");
             Assert.Equal(1, rows);
@@ -184,14 +147,15 @@ public class RealMysqlTests
         using (conn)
         {
             string? host = null;
-            var (rowCount, selErr) = await conn!.ExecuteReaderAsync(
-                SelectSql, SelectParams,
-                cmd => { cmd.SetParameterValue("@name", TestDataSourceName); return default; },
-                reader =>
-                {
-                    host = reader.GetString("data_source_host");
-                    return default;
-                }).ConfigureAwait(true);
+            var (rowCount, selErr) = await conn!.ExecuteReaderAsync(SelectSql,
+            [
+                new SqlParam { Name = "@name", DataType = MySqlDbType.VarChar, Value = TestDataSourceName },
+            ],
+            reader =>
+            {
+                host = reader.GetString("data_source_host");
+                return default;
+            }).ConfigureAwait(true);
 
             Assert.False(selErr.Err(), $"SELECT after UPDATE failed: {selErr.Message}");
             Assert.Equal(1, rowCount);
@@ -203,9 +167,10 @@ public class RealMysqlTests
         Assert.False(getErr.Err());
         using (conn)
         {
-            var (rows, _, delErr) = await conn!.ExecuteNonQueryAsync(
-                DeleteSql, DeleteParams,
-                cmd => { cmd.SetParameterValue("@name", TestDataSourceName); return default; }).ConfigureAwait(true);
+            var (rows, _, delErr) = await conn!.ExecuteNonQueryAsync(DeleteSql,
+            [
+                new SqlParam { Name = "@name", DataType = MySqlDbType.VarChar, Value = TestDataSourceName },
+            ]).ConfigureAwait(true);
 
             Assert.False(delErr.Err(), $"DELETE failed: {delErr.Message}");
             Assert.Equal(1, rows);
@@ -216,9 +181,10 @@ public class RealMysqlTests
         Assert.False(getErr.Err());
         using (conn)
         {
-            var (count, finalErr) = await conn!.ExecuteScalarAsync(
-                CountSql, SelectParams,
-                cmd => { cmd.SetParameterValue("@name", TestDataSourceName); return default; }).ConfigureAwait(true);
+            var (count, finalErr) = await conn!.ExecuteScalarAsync(CountSql,
+            [
+                new SqlParam { Name = "@name", DataType = MySqlDbType.VarChar, Value = TestDataSourceName },
+            ]).ConfigureAwait(true);
 
             Assert.False(finalErr.Err(), $"SELECT after DELETE failed: {finalErr.Message}");
             Assert.Equal(0L, Convert.ToInt64(count));
@@ -228,7 +194,7 @@ public class RealMysqlTests
     /// <summary>
     /// 确保测试数据被清理（幂等，可重复调用）。
     /// </summary>
-    private static async Task CleanupAsync(DbConnectionPool pool)
+    private static async Task CleanupAsync(DbConnectionPool<MySqlConnectionWrapper, MySqlCommandWrapper, MySqlReaderWrapper> pool)
     {
         var (conn, err) = await pool.GetAsync().ConfigureAwait(true);
         if (err.Err())
@@ -237,9 +203,10 @@ public class RealMysqlTests
         }
         using (conn)
         {
-            await conn!.ExecuteNonQueryAsync(
-                DeleteSql, DeleteParams,
-                cmd => { cmd.SetParameterValue("@name", TestDataSourceName); return default; }).ConfigureAwait(true);
+            await conn!.ExecuteNonQueryAsync(DeleteSql,
+            [
+                new SqlParam { Name = "@name", DataType = MySqlDbType.VarChar, Value = TestDataSourceName },
+            ]).ConfigureAwait(true);
         }
     }
 }

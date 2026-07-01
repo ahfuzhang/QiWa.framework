@@ -7,7 +7,7 @@ using QiWa.Mysql;
 /// <summary>
 /// Fake IRawConnection for unit tests. Allows injecting errors for each lifecycle operation.
 /// </summary>
-internal sealed class FakeRawConnection : IRawConnection
+internal sealed class FakeRawConnection : IRawConnection<FakeRawCommand, FakeRawReader>
 {
     /// <summary>Exception thrown by OpenAsync, or null to succeed.</summary>
     public Exception? OpenException { get; set; }
@@ -50,7 +50,7 @@ internal sealed class FakeRawConnection : IRawConnection
 
     public void Close() => WasClosed = true;
 
-    public IRawCommand CreateCommand() => Command;
+    public FakeRawCommand CreateCommand() => Command;
 
     public void Dispose() => WasDisposed = true;
 }
@@ -58,7 +58,7 @@ internal sealed class FakeRawConnection : IRawConnection
 /// <summary>
 /// Fake IRawCommand for unit tests. Supports error injection and configurable return values.
 /// </summary>
-internal sealed class FakeRawCommand : IRawCommand
+internal sealed class FakeRawCommand : IRawCommand<FakeRawReader>
 {
     /// <summary>Exception thrown by PrepareAsync, or null to succeed.</summary>
     public Exception? PrepareException { get; set; }
@@ -124,13 +124,13 @@ internal sealed class FakeRawCommand : IRawCommand
         return Task.FromResult(ScalarResult);
     }
 
-    public Task<IRawReader> ExecuteReaderAsync(CancellationToken ct)
+    public Task<FakeRawReader> ExecuteReaderAsync(CancellationToken ct)
     {
         if (ReaderException != null)
         {
             throw ReaderException;
         }
-        return Task.FromResult<IRawReader>(Reader);
+        return Task.FromResult(Reader);
     }
 
     public void Dispose() => WasDisposed = true;
@@ -159,6 +159,7 @@ internal sealed class FakeRawReader : IRawReader
     public bool GetBoolean(int ordinal) => false;
     public int GetInt32(int ordinal) => 0;
     public long GetInt64(int ordinal) => 0L;
+    public ulong GetUInt64(int ordinal) => 0UL;
     public float GetFloat(int ordinal) => 0f;
     public double GetDouble(int ordinal) => 0.0;
     public decimal GetDecimal(int ordinal) => 0m;

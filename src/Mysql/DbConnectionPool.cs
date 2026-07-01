@@ -1,3 +1,4 @@
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace QiWa.Mysql;
 
 using System.Threading.Channels;
@@ -10,27 +11,43 @@ using QiWa.Common;
 /// </summary>
 public readonly struct Options { }
 
+public sealed record SqlParam
+{
+    public required string Name;
+    public MySqlDbType DataType;
+    public object? Value;
+}
+
 /// <summary>
-/// A fixed-size pool of <see cref="DbConnection"/> objects backed by a bounded channel.
-/// Not a singleton — create one per logical database / role.
+/// A fixed-size pool of database connections backed by a bounded channel.
+/// Generic over the concrete connection, command, and reader types so callers work with
+/// compile-time-known types rather than interface references.
+///
+/// Production: <c>DbConnectionPool&lt;MySqlConnectionWrapper, MySqlCommandWrapper, MySqlReaderWrapper&gt;</c>
+/// Tests:      <c>DbConnectionPool&lt;FakeRawConnection, FakeRawCommand, FakeRawReader&gt;</c>
+///
+/// Note: MySqlConnection / MySqlCommand / MySqlDataReader cannot be used directly as type arguments
+/// because C# requires explicit interface declaration (no structural/duck typing).
+/// The wrapper classes serve as thin adapters.
 /// </summary>
-public sealed class DbConnectionPool
+public sealed class DbConnectionPool<TConn, TCmd, TReader>
+    where TConn : class, IRawConnection<TCmd, TReader>
+    where TCmd : class, IRawCommand<TReader>
+    where TReader : class, IRawReader
 {
     internal readonly string _connectionString;
     private readonly int _limit;
-    private readonly Channel<DbConnection> _channel;
-    private int _count;     // successfully created connections (in channel + in use)
+    private readonly Channel<DbConnection<TConn, TCmd, TReader>> _channel;
+    private int _count;
 
-    // Factory injected at construction time; defaults to a real MySqlConnection wrapper.
-    // Overridden in unit tests to substitute a fake connection without a real MySQL server.
-    internal readonly Func<IRawConnection> _rawConnectionFactory;
+    internal readonly Func<TConn> _rawConnectionFactory;
 
-    private DbConnectionPool(string connectionString, int limit, Func<IRawConnection> rawConnectionFactory)
+    private DbConnectionPool(string connectionString, int limit, Func<TConn> rawConnectionFactory)
     {
         _connectionString = connectionString;
         _limit = limit;
         _rawConnectionFactory = rawConnectionFactory;
-        _channel = Channel.CreateBounded<DbConnection>(new BoundedChannelOptions(limit)
+        _channel = Channel.CreateBounded<DbConnection<TConn, TCmd, TReader>>(new BoundedChannelOptions(limit)
         {
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = false,
@@ -38,9 +55,7 @@ public sealed class DbConnectionPool
         });
     }
 
-    /// <summary>
-    /// 销毁整个连接池
-    /// </summary>
+    /// <summary>销毁整个连接池</summary>
     public void Close()
     {
         _channel.Writer.Complete();
@@ -51,27 +66,18 @@ public sealed class DbConnectionPool
     }
 
     /// <summary>
-    /// 创建一个连接池对象
+    /// 创建一个连接池对象。
     /// </summary>
     /// <param name="connectionString">连接字符串</param>
     /// <param name="limit">连接池最大数量</param>
+    /// <param name="rawConnectionFactory">创建 <typeparamref name="TConn"/> 实例的工厂函数</param>
     /// <param name="ct">控制访问超时的 token</param>
-    /// <returns>
-    /// * DbConnectionPool? 连接池对象
-    /// * Error 错误对象
-    /// </returns>
-    /// <exception cref="Exception">不会抛出任何异常</exception>
-    public static Task<(DbConnectionPool?, Error)> CreateAsync(string connectionString, int limit, CancellationToken ct = default)
-        => CreateAsync(connectionString, limit, () => new MySqlConnectionWrapper(), ct);
-
-    /// <summary>
-    /// Internal overload used by unit tests to inject a fake connection factory.
-    /// </summary>
-    internal static async Task<(DbConnectionPool?, Error)> CreateAsync(
-        string connectionString, int limit, Func<IRawConnection> rawConnectionFactory, CancellationToken ct = default)
+#pragma warning disable CA1000
+    public static async Task<(DbConnectionPool<TConn, TCmd, TReader>?, Error)> CreateAsync(
+        string connectionString, int limit, Func<TConn> rawConnectionFactory, CancellationToken ct = default)
     {
-        var pool = new DbConnectionPool(connectionString, limit, rawConnectionFactory);
-        var (conn, err) = await DbConnection.OpenAsync(pool, ct).ConfigureAwait(false);
+        var pool = new DbConnectionPool<TConn, TCmd, TReader>(connectionString, limit, rawConnectionFactory);
+        var (conn, err) = await DbConnection<TConn, TCmd, TReader>.OpenAsync(pool, ct).ConfigureAwait(false);
         if (err.Err())
         {
             pool.Close();
@@ -83,20 +89,20 @@ public sealed class DbConnectionPool
         }
         return (pool, default);
     }
+#pragma warning restore CA1000
 
     /// <summary>
     /// Borrow a connection from the pool.
     /// If the pool is empty and below <c>limit</c>, a new connection is created.
     /// Otherwise the call waits until <paramref name="ct"/> is cancelled.
     /// </summary>
-    public async ValueTask<(DbConnection?, Error)> GetAsync(CancellationToken ct = default)
+    public async ValueTask<(DbConnection<TConn, TCmd, TReader>?, Error)> GetAsync(CancellationToken ct = default)
     {
         // Fast path: idle connection already available.
         do
         {
             if (!_channel.Reader.TryRead(out var conn))
             {
-                // 队列为空，说明需要创建新的连接
                 break;
             }
             if (!conn.IsInUse())
@@ -107,11 +113,12 @@ public sealed class DbConnectionPool
             conn.CloseAfterDone();
             Interlocked.Decrement(ref _count);
         } while (true);
+
         // Try to grow the pool: claim a creation slot first, create only if under limit.
         int count = Interlocked.Increment(ref _count);
         if (count >= _limit)
         {
-            DbConnection conn;
+            DbConnection<TConn, TCmd, TReader> conn;
             try
             {
                 conn = await _channel.Reader.ReadAsync(ct).ConfigureAwait(true);  // 阻塞等待，直至超时
@@ -127,19 +134,19 @@ public sealed class DbConnectionPool
             conn.CloseAfterDone();
             Interlocked.Decrement(ref _count);
         }
+
         // 如果因为并发，创建了超过 limit 的对象，则多余的对象在 Put() 时会被释放掉
-        // 构造新对象
-        var (newConn, err) = await DbConnection.OpenAsync(this, ct).ConfigureAwait(false);
+        var (newConn, err) = await DbConnection<TConn, TCmd, TReader>.OpenAsync(this, ct).ConfigureAwait(false);
         if (err.Err())
         {
             return (null, err);
         }
-        Interlocked.Increment(ref _count);  // only increment on successful creation
+        Interlocked.Increment(ref _count);
         return (newConn, default);
     }
 
     // 每个 DbConnection 对象的 Dispose() 方法会调用 Put() 来放回连接池
-    internal void Put(DbConnection conn)
+    internal void Put(DbConnection<TConn, TCmd, TReader> conn)
     {
         if (!_channel.Writer.TryWrite(conn))
         {
@@ -150,17 +157,37 @@ public sealed class DbConnectionPool
 }
 
 /// <summary>
-/// A pooled MySQL connection that caches prepared statements keyed by SQL text.
+/// Convenience factory for production use with the real MySqlConnector types.
+/// Equivalent to <c>DbConnectionPool&lt;MySqlConnectionWrapper, MySqlCommandWrapper, MySqlReaderWrapper&gt;</c>.
 /// </summary>
-public sealed class DbConnection : IDisposable
+public static class DbConnectionPool
 {
-    private readonly DbConnectionPool _pool;
-    private IRawConnection _rawConn;
-    private readonly Dictionary<string, IRawCommand> _preparedStatements = new();
+    /// <summary>
+    /// 创建生产环境连接池（使用 MySqlConnector 自带对象的 wrapper）。
+    /// </summary>
+    public static Task<(DbConnectionPool<MySqlConnectionWrapper, MySqlCommandWrapper, MySqlReaderWrapper>?, Error)>
+        CreateAsync(string connectionString, int limit, CancellationToken ct = default)
+        => DbConnectionPool<MySqlConnectionWrapper, MySqlCommandWrapper, MySqlReaderWrapper>
+            .CreateAsync(connectionString, limit, () => new MySqlConnectionWrapper(), ct);
+}
+
+/// <summary>
+/// A pooled database connection that caches prepared statements keyed by SQL text.
+/// Generic over <typeparamref name="TConn"/>, <typeparamref name="TCmd"/>, <typeparamref name="TReader"/>
+/// so all operations are typed at compile time.
+/// </summary>
+public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
+    where TConn : class, IRawConnection<TCmd, TReader>
+    where TCmd : class, IRawCommand<TReader>
+    where TReader : class, IRawReader
+{
+    private readonly DbConnectionPool<TConn, TCmd, TReader> _pool;
+    private TConn _rawConn;
+    private readonly Dictionary<string, TCmd> _preparedStatements = new();
     private long _inUse = 0;
     private bool _disableReuse;  // 当出现异常时，不再重用
 
-    internal DbConnection(DbConnectionPool pool, IRawConnection rawConn)
+    internal DbConnection(DbConnectionPool<TConn, TCmd, TReader> pool, TConn rawConn)
     {
         _pool = pool;
         _rawConn = rawConn;
@@ -192,27 +219,23 @@ public sealed class DbConnection : IDisposable
         {
             while (IsInUse())
             {
-                await Task.Delay(100).ConfigureAwait(true);  // 100 毫秒检查一次，是否用完了
+                await Task.Delay(100).ConfigureAwait(true);
             }
             Close();
         });
     }
 
-    /// <summary>
-    /// 当前连接对象是否正在使用之中
-    /// </summary>
-    public bool IsInUse()
-    {
-        return Interlocked.Read(ref this._inUse) == 1;
-    }
+    /// <summary>当前连接对象是否正在使用之中</summary>
+    public bool IsInUse() => Interlocked.Read(ref _inUse) == 1;
 
     // 初始化 Connection 对象
-    internal static async ValueTask<(DbConnection?, Error)> OpenAsync(DbConnectionPool pool, CancellationToken ct)
+    internal static async ValueTask<(DbConnection<TConn, TCmd, TReader>?, Error)> OpenAsync(
+        DbConnectionPool<TConn, TCmd, TReader> pool, CancellationToken ct)
     {
         var rawConn = pool._rawConnectionFactory();
         rawConn.ConnectionString = pool._connectionString;
 #pragma warning disable CA2000
-        var conn = new DbConnection(pool, rawConn);
+        var conn = new DbConnection<TConn, TCmd, TReader>(pool, rawConn);
 #pragma warning restore CA2000
         try
         {
@@ -258,11 +281,10 @@ public sealed class DbConnection : IDisposable
         CloseAfterDone();
     }
 
-    // Returns the cached IRawCommand for sql, or prepares a new one.
-    private async ValueTask<(IRawCommand?, Error)> GetOrPrepareAsync(
-        string sql, Dictionary<string, MySqlDbType>? parameters, CancellationToken ct)
+    // Returns the cached TCmd for sql, or prepares a new one.
+    private async ValueTask<(TCmd?, Error)> GetOrPrepareAsync(
+        string sql, SqlParam[] parameters, CancellationToken ct)
     {
-        // 直接获取缓存的语句
         if (_preparedStatements.TryGetValue(sql, out var cached))
         {
             return (cached, default);
@@ -272,9 +294,9 @@ public sealed class DbConnection : IDisposable
 
         if (parameters != null)
         {
-            foreach (var kv in parameters)
+            foreach (var p in parameters)
             {
-                cmd.AddParameter(kv.Key, kv.Value);
+                cmd.AddParameter(p.Name, p.DataType);
             }
         }
         try
@@ -300,13 +322,11 @@ public sealed class DbConnection : IDisposable
     /// Executes INSERT / UPDATE / DELETE and returns (affectedRows, lastInsertId, error).
     /// </summary>
     /// <param name="sql">The SQL statement; use named parameters like @name.</param>
-    /// <param name="parameters">Parameter name → MySQL type map used for prepare. Pass null for no parameters.</param>
-    /// <param name="bindFunc">Closure that sets parameter values on the prepared command. Pass null for no parameters.</param>
+    /// <param name="parameters">Parameters (name, type, value). Pass null or empty for no parameters.</param>
     /// <param name="ct">控制超时的 token</param>
     public async ValueTask<(int affectedRows, long lastInsertId, Error err)> ExecuteNonQueryAsync(
         string sql,
-        Dictionary<string, MySqlDbType>? parameters,
-        Func<IRawCommand, Error>? bindFunc,
+        SqlParam[] parameters,
         CancellationToken ct = default)
     {
         Interlocked.Exchange(ref _inUse, 1);
@@ -319,17 +339,15 @@ public sealed class DbConnection : IDisposable
         {
             return (0, 0, prepErr);
         }
-        if (bindFunc != null)
+        if (parameters != null)
         {
-            var bindErr = bindFunc(cmd!);
-            if (bindErr.Err())
+            foreach (var p in parameters)
             {
-                return (0, 0, bindErr);
+                cmd!.SetParameterValue(p.Name, p.Value);
             }
         }
         try
         {
-            // 一旦有错误的编译语句，使用者需要使用 RemoveCache 来删除缓存。否则这条语句会一直报错
             int rows = await cmd!.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
             return (rows, cmd.LastInsertedId, default);
         }
@@ -344,9 +362,7 @@ public sealed class DbConnection : IDisposable
         }
     }
 
-    /// <summary>
-    /// 删除某条语句的缓存
-    /// </summary>
+    /// <summary>删除某条语句的缓存</summary>
     /// <param name="sql"></param>
     /// <returns>true/false, 是否删除成功</returns>
     public bool RemoveCache(string sql)
@@ -365,8 +381,7 @@ public sealed class DbConnection : IDisposable
     /// </summary>
     public async ValueTask<(object? result, Error err)> ExecuteScalarAsync(
         string sql,
-        Dictionary<string, MySqlDbType>? parameters,
-        Func<IRawCommand, Error>? bindFunc,
+        SqlParam[] parameters,
         CancellationToken ct = default)
     {
         Interlocked.Exchange(ref _inUse, 1);
@@ -379,15 +394,13 @@ public sealed class DbConnection : IDisposable
         {
             return (null, prepErr);
         }
-        if (bindFunc != null)
+        if (parameters != null)
         {
-            var bindErr = bindFunc(cmd!);
-            if (bindErr.Err())
+            foreach (var p in parameters)
             {
-                return (null, bindErr);
+                cmd!.SetParameterValue(p.Name, p.Value);
             }
         }
-
         try
         {
             var scalar = await cmd!.ExecuteScalarAsync(ct).ConfigureAwait(false);
@@ -407,12 +420,12 @@ public sealed class DbConnection : IDisposable
     /// <summary>
     /// Executes a SELECT and feeds each row to <paramref name="eachRowFunc"/>.
     /// Returns (rowCount, error). If <paramref name="eachRowFunc"/> returns an error, iteration stops immediately.
+    /// The callback receives the concrete <typeparamref name="TReader"/> directly — no interface cast needed.
     /// </summary>
     public async ValueTask<(long rowCount, Error err)> ExecuteReaderAsync(
         string sql,
-        Dictionary<string, MySqlDbType>? parameters,
-        Func<IRawCommand, Error>? bindFunc,
-        Func<IRawReader, Error> eachRowFunc,
+        SqlParam[] parameters,
+        Func<TReader, Error> eachRowFunc,
         CancellationToken ct = default)
     {
         if (eachRowFunc == null)
@@ -429,13 +442,11 @@ public sealed class DbConnection : IDisposable
         {
             return (0, prepErr);
         }
-
-        if (bindFunc != null)
+        if (parameters != null)
         {
-            var bindErr = bindFunc(cmd!);
-            if (bindErr.Err())
+            foreach (var p in parameters)
             {
-                return (0, bindErr);
+                cmd!.SetParameterValue(p.Name, p.Value);
             }
         }
         try

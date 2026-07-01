@@ -4,9 +4,11 @@ using MySqlConnector;
 
 /// <summary>
 /// Abstracts the execution of a database command.
+/// Generic over <typeparamref name="TReader"/> so the concrete reader type flows through without casting.
 /// Implemented by the real MySqlCommand wrapper and by fakes for unit testing.
 /// </summary>
-public interface IRawCommand : IDisposable
+public interface IRawCommand<TReader> : IDisposable
+    where TReader : IRawReader
 {
     /// <summary>Gets or sets the SQL text to execute.</summary>
     string CommandText { get; set; }
@@ -17,7 +19,7 @@ public interface IRawCommand : IDisposable
     /// <summary>Declares a named parameter and its MySQL type (called during prepare).</summary>
     void AddParameter(string name, MySqlDbType type);
 
-    /// <summary>Sets the runtime value of an already-declared parameter (called in bindFunc).</summary>
+    /// <summary>Sets the runtime value of an already-declared parameter.</summary>
     void SetParameterValue(string name, object? value);
 
     /// <summary>Sends a PREPARE request to the server for this command.</summary>
@@ -29,6 +31,6 @@ public interface IRawCommand : IDisposable
     /// <summary>Executes a scalar query and returns the first column of the first row.</summary>
     Task<object?> ExecuteScalarAsync(CancellationToken ct);
 
-    /// <summary>Executes a SELECT query and returns a row reader.</summary>
-    Task<IRawReader> ExecuteReaderAsync(CancellationToken ct);
+    /// <summary>Executes a SELECT query and returns a concrete <typeparamref name="TReader"/>.</summary>
+    Task<TReader> ExecuteReaderAsync(CancellationToken ct);
 }

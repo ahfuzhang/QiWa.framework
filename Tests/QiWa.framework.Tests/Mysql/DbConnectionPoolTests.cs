@@ -9,6 +9,16 @@ using QiWa.Common;
 using QiWa.Mysql;
 using Xunit;
 
+// Type aliases to avoid repeating the three type arguments throughout the file.
+using TestPool = QiWa.Mysql.DbConnectionPool<
+    Tests.Mysql.FakeRawConnection,
+    Tests.Mysql.FakeRawCommand,
+    Tests.Mysql.FakeRawReader>;
+using TestConn = QiWa.Mysql.DbConnection<
+    Tests.Mysql.FakeRawConnection,
+    Tests.Mysql.FakeRawCommand,
+    Tests.Mysql.FakeRawReader>;
+
 public class DbConnectionPoolTests
 {
     // ── 辅助方法 ──────────────────────────────────────────────────────────────
@@ -32,10 +42,10 @@ public class DbConnectionPoolTests
     /// <summary>
     /// 创建一个已成功初始化的连接池，factory 固定返回一个新的 FakeRawConnection。
     /// </summary>
-    private static async Task<(DbConnectionPool pool, FakeRawConnection firstConn)> MakePoolAsync(int limit = 3)
+    private static async Task<(TestPool pool, FakeRawConnection firstConn)> MakePoolAsync(int limit = 3)
     {
         var fake = new FakeRawConnection();
-        var (pool, err) = await DbConnectionPool.CreateAsync("server=fake", limit, () => fake).ConfigureAwait(true);
+        var (pool, err) = await TestPool.CreateAsync("server=fake", limit, () => fake).ConfigureAwait(true);
         Assert.False(err.Err(), err.Message);
         return (pool!, fake);
     }
@@ -43,14 +53,14 @@ public class DbConnectionPoolTests
     /// <summary>
     /// 通过内部构造函数直接创建 DbConnection（用于注入测试）。
     /// </summary>
-    private static DbConnection CreateDbConnection(DbConnectionPool pool, IRawConnection rawConn)
+    private static TestConn CreateDbConnection(TestPool pool, FakeRawConnection rawConn)
     {
-        var ctor = typeof(DbConnection).GetConstructor(
+        var ctor = typeof(TestConn).GetConstructor(
             BindingFlags.Instance | BindingFlags.NonPublic,
             null,
-            new[] { typeof(DbConnectionPool), typeof(IRawConnection) },
+            new[] { typeof(TestPool), typeof(FakeRawConnection) },
             null)!;
-        return (DbConnection)ctor.Invoke(new object[] { pool, rawConn });
+        return (TestConn)ctor.Invoke(new object[] { pool, rawConn });
     }
 
     // ── DbConnectionPool.CreateAsync ─────────────────────────────────────────
@@ -70,7 +80,7 @@ public class DbConnectionPoolTests
         {
             OpenException = MakeMySqlException("connection refused"),
         };
-        var (pool, err) = await DbConnectionPool.CreateAsync("server=fake", 3, () => fake).ConfigureAwait(true);
+        var (pool, err) = await TestPool.CreateAsync("server=fake", 3, () => fake).ConfigureAwait(true);
         Assert.Null(pool);
         Assert.True(err.Err());
         Assert.Contains("MySqlException", err.Message);
@@ -85,7 +95,7 @@ public class DbConnectionPoolTests
         {
             OpenException = new OperationCanceledException("timeout"),
         };
-        var (pool, err) = await DbConnectionPool.CreateAsync("server=fake", 3, () => fake).ConfigureAwait(true);
+        var (pool, err) = await TestPool.CreateAsync("server=fake", 3, () => fake).ConfigureAwait(true);
         Assert.Null(pool);
         Assert.True(err.Err());
         Assert.Contains("OperationCanceledException", err.Message);
@@ -99,7 +109,7 @@ public class DbConnectionPoolTests
         {
             PingException = MakeMySqlException("ping failed"),
         };
-        var (pool, err) = await DbConnectionPool.CreateAsync("server=fake", 3, () => fake).ConfigureAwait(true);
+        var (pool, err) = await TestPool.CreateAsync("server=fake", 3, () => fake).ConfigureAwait(true);
         Assert.Null(pool);
         Assert.True(err.Err());
         Assert.Contains("PingAsync", err.Message);
@@ -113,7 +123,7 @@ public class DbConnectionPoolTests
         {
             PingException = new OperationCanceledException("ping timeout"),
         };
-        var (pool, err) = await DbConnectionPool.CreateAsync("server=fake", 3, () => fake).ConfigureAwait(true);
+        var (pool, err) = await TestPool.CreateAsync("server=fake", 3, () => fake).ConfigureAwait(true);
         Assert.Null(pool);
         Assert.True(err.Err());
         Assert.Contains("PingAsync", err.Message);
@@ -165,13 +175,12 @@ public class DbConnectionPoolTests
     public async Task GetAsync_GrowsPool_WhenBelowLimit()
     {
         int factoryCalls = 0;
-        // Use explicit type for Func to avoid lambda inference issues
-        Func<IRawConnection> factory = () =>
+        Func<FakeRawConnection> factory = () =>
         {
             factoryCalls++;
             return new FakeRawConnection();
         };
-        var (pool, err) = await DbConnectionPool.CreateAsync("server=fake", 5, factory).ConfigureAwait(true);
+        var (pool, err) = await TestPool.CreateAsync("server=fake", 5, factory).ConfigureAwait(true);
         Assert.False(err.Err());
 
         // Fast path: take the existing connection out of the channel
@@ -192,7 +201,7 @@ public class DbConnectionPoolTests
     public async Task GetAsync_GrowPool_OpenFails_ReturnsError()
     {
         bool firstCall = true;
-        Func<IRawConnection> factory = () =>
+        Func<FakeRawConnection> factory = () =>
         {
             if (firstCall)
             {
@@ -201,7 +210,7 @@ public class DbConnectionPoolTests
             }
             return new FakeRawConnection { OpenException = MakeMySqlException("fail on second") };
         };
-        var (pool, err) = await DbConnectionPool.CreateAsync("server=fake", 5, factory).ConfigureAwait(true);
+        var (pool, err) = await TestPool.CreateAsync("server=fake", 5, factory).ConfigureAwait(true);
         Assert.False(err.Err());
 
         var (conn1, _) = await pool!.GetAsync().ConfigureAwait(true);  // fast path
@@ -261,18 +270,18 @@ public class DbConnectionPoolTests
     public async Task GetAsync_SkipsInUseConnection_AndCreatesNew()
     {
         int factoryCalls = 0;
-        Func<IRawConnection> factory = () =>
+        Func<FakeRawConnection> factory = () =>
         {
             factoryCalls++;
             return new FakeRawConnection();
         };
-        var (pool, err) = await DbConnectionPool.CreateAsync("server=fake", 5, factory).ConfigureAwait(true);
+        var (pool, err) = await TestPool.CreateAsync("server=fake", 5, factory).ConfigureAwait(true);
         Assert.False(err.Err());
 
         var (conn, _) = await pool!.GetAsync().ConfigureAwait(true);
 
         // Mark conn as "in use" via reflection, then put it back directly
-        var inUseField = typeof(DbConnection).GetField("_inUse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var inUseField = typeof(TestConn).GetField("_inUse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         inUseField.SetValue(conn, 1L);
         pool.Put(conn!);  // push the in-use connection back into the channel
 
@@ -327,7 +336,7 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var inUseField = typeof(DbConnection).GetField("_inUse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var inUseField = typeof(TestConn).GetField("_inUse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         inUseField.SetValue(conn, 1L);
         Assert.True(conn!.IsInUse());
 
@@ -344,7 +353,7 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var field = typeof(DbConnection).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var field = typeof(TestConn).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         field.SetValue(conn, true);
 
         conn!.Dispose();  // should call CloseAfterDone instead of Put
@@ -364,7 +373,7 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var inUseField = typeof(DbConnection).GetField("_inUse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var inUseField = typeof(TestConn).GetField("_inUse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         inUseField.SetValue(conn, 1L);  // simulate "in use"
 
         conn!.CloseAfterDone();  // starts background task
@@ -399,7 +408,7 @@ public class DbConnectionPoolTests
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
         // Execute a query first to populate the cache
-        await conn!.ExecuteNonQueryAsync("INSERT INTO t VALUES(1)", null, null).ConfigureAwait(true);
+        await conn!.ExecuteNonQueryAsync("INSERT INTO t VALUES(1)", []).ConfigureAwait(true);
 
         bool removed = conn.RemoveCache("INSERT INTO t VALUES(1)");
         Assert.True(removed);
@@ -420,12 +429,12 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.NonQueryResult = 5;
         fakeConn.Command.LastInsertedIdValue = 42;
 
-        var (rows, lastId, err) = await conn!.ExecuteNonQueryAsync("INSERT INTO t VALUES(@v)", null, null).ConfigureAwait(true);
+        var (rows, lastId, err) = await conn!.ExecuteNonQueryAsync("INSERT INTO t VALUES(@v)", []).ConfigureAwait(true);
         Assert.False(err.Err());
         Assert.Equal(5, rows);
         Assert.Equal(42, lastId);
@@ -435,48 +444,27 @@ public class DbConnectionPoolTests
     }
 
     [Fact]
-    public async Task ExecuteNonQueryAsync_WithParameters_AndBindFunc_CallsBothCorrectly()
+    public async Task ExecuteNonQueryAsync_WithParameters_SetsValuesOnCommand()
     {
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.NonQueryResult = 1;
 
-        bool bindCalled = false;
-        var parameters = new Dictionary<string, MySqlDbType> { ["@id"] = MySqlDbType.Int32 };
+        var parameters = new SqlParam[]
+        {
+            new SqlParam { Name = "@id", DataType = MySqlDbType.Int32, Value = 7 },
+        };
         var (rows, _, err) = await conn!.ExecuteNonQueryAsync(
             "UPDATE t SET v=1 WHERE id=@id",
-            parameters,
-            cmd =>
-            {
-                bindCalled = true;
-                cmd.SetParameterValue("@id", 7);
-                return default;
-            }).ConfigureAwait(true);
+            parameters).ConfigureAwait(true);
 
         Assert.False(err.Err());
         Assert.Equal(1, rows);
-        Assert.True(bindCalled);
-
-        conn.Dispose();
-        pool.Close();
-    }
-
-    [Fact]
-    public async Task ExecuteNonQueryAsync_BindFuncReturnsError_PropagatesError()
-    {
-        var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
-        var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
-
-        var (_, _, err) = await conn!.ExecuteNonQueryAsync(
-            "INSERT INTO t VALUES(@v)",
-            null,
-            _ => Error.WithLoc(999, "bind error")).ConfigureAwait(true);
-
-        Assert.True(err.Err());
-        Assert.Equal(999u, err.Code);
+        Assert.True(fakeConn.Command.SetValues.ContainsKey("@id"));
+        Assert.Equal(7, fakeConn.Command.SetValues["@id"]);
 
         conn.Dispose();
         pool.Close();
@@ -488,11 +476,11 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.PrepareException = MakeMySqlException("syntax error");
 
-        var (_, _, err) = await conn!.ExecuteNonQueryAsync("BAD SQL", null, null).ConfigureAwait(true);
+        var (_, _, err) = await conn!.ExecuteNonQueryAsync("BAD SQL", []).ConfigureAwait(true);
         Assert.True(err.Err());
         Assert.Contains("PrepareAsync", err.Message);
 
@@ -506,15 +494,15 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.PrepareException = new OperationCanceledException();
 
-        var (_, _, err) = await conn!.ExecuteNonQueryAsync("SELECT 1", null, null).ConfigureAwait(true);
+        var (_, _, err) = await conn!.ExecuteNonQueryAsync("SELECT 1", []).ConfigureAwait(true);
         Assert.True(err.Err());
         Assert.Contains("PrepareAsync", err.Message);
 
-        var disableField = typeof(DbConnection).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var disableField = typeof(TestConn).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.True((bool)disableField.GetValue(conn)!);
 
         conn.Dispose();
@@ -527,11 +515,11 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.NonQueryException = MakeMySqlException("deadlock");
 
-        var (_, _, err) = await conn!.ExecuteNonQueryAsync("DELETE FROM t", null, null).ConfigureAwait(true);
+        var (_, _, err) = await conn!.ExecuteNonQueryAsync("DELETE FROM t", []).ConfigureAwait(true);
         Assert.True(err.Err());
         Assert.Contains("ExecuteNonQueryAsync", err.Message);
 
@@ -545,15 +533,15 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.NonQueryException = new OperationCanceledException();
 
-        var (_, _, err) = await conn!.ExecuteNonQueryAsync("DELETE FROM t", null, null).ConfigureAwait(true);
+        var (_, _, err) = await conn!.ExecuteNonQueryAsync("DELETE FROM t", []).ConfigureAwait(true);
         Assert.True(err.Err());
         Assert.Contains("ExecuteNonQueryAsync", err.Message);
 
-        var disableField = typeof(DbConnection).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var disableField = typeof(TestConn).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.True((bool)disableField.GetValue(conn)!);
 
         conn.Dispose();
@@ -566,16 +554,16 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
 
         // First call: prepare + execute
-        await conn!.ExecuteNonQueryAsync("INSERT INTO t VALUES(1)", null, null).ConfigureAwait(true);
+        await conn!.ExecuteNonQueryAsync("INSERT INTO t VALUES(1)", []).ConfigureAwait(true);
         Assert.True(fakeConn.Command.WasPrepared);
 
         // Second call with same SQL: inject prepare error — should hit cache and not call Prepare
         fakeConn.Command.PrepareException = MakeMySqlException("should not be called");
-        var (_, _, err) = await conn.ExecuteNonQueryAsync("INSERT INTO t VALUES(1)", null, null).ConfigureAwait(true);
+        var (_, _, err) = await conn.ExecuteNonQueryAsync("INSERT INTO t VALUES(1)", []).ConfigureAwait(true);
         Assert.False(err.Err());  // no error because prepare was not called (cache hit)
 
         conn.Dispose();
@@ -590,11 +578,11 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.ScalarResult = 42L;
 
-        var (result, err) = await conn!.ExecuteScalarAsync("SELECT COUNT(*) FROM t", null, null).ConfigureAwait(true);
+        var (result, err) = await conn!.ExecuteScalarAsync("SELECT COUNT(*) FROM t", []).ConfigureAwait(true);
         Assert.False(err.Err());
         Assert.Equal(42L, result);
 
@@ -603,37 +591,25 @@ public class DbConnectionPoolTests
     }
 
     [Fact]
-    public async Task ExecuteScalarAsync_WithBindFunc_CallsFunc()
+    public async Task ExecuteScalarAsync_WithParameters_SetsValuesOnCommand()
     {
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        bool called = false;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
+
+        var parameters = new SqlParam[]
+        {
+            new SqlParam { Name = "@id", DataType = MySqlDbType.Int32, Value = 99 },
+        };
         var (_, err) = await conn!.ExecuteScalarAsync(
             "SELECT * FROM t WHERE id=@id",
-            new Dictionary<string, MySqlDbType> { ["@id"] = MySqlDbType.Int32 },
-            cmd => { called = true; return default; }).ConfigureAwait(true);
+            parameters).ConfigureAwait(true);
 
         Assert.False(err.Err());
-        Assert.True(called);
-
-        conn.Dispose();
-        pool.Close();
-    }
-
-    [Fact]
-    public async Task ExecuteScalarAsync_BindFuncReturnsError_PropagatesError()
-    {
-        var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
-        var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
-
-        var (_, err) = await conn!.ExecuteScalarAsync(
-            "SELECT 1",
-            null,
-            _ => Error.WithLoc(88, "scalar bind error")).ConfigureAwait(true);
-
-        Assert.True(err.Err());
-        Assert.Equal(88u, err.Code);
+        Assert.True(fakeConn.Command.SetValues.ContainsKey("@id"));
+        Assert.Equal(99, fakeConn.Command.SetValues["@id"]);
 
         conn.Dispose();
         pool.Close();
@@ -645,11 +621,11 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.ScalarException = MakeMySqlException("scalar fail");
 
-        var (_, err) = await conn!.ExecuteScalarAsync("SELECT 1", null, null).ConfigureAwait(true);
+        var (_, err) = await conn!.ExecuteScalarAsync("SELECT 1", []).ConfigureAwait(true);
         Assert.True(err.Err());
         Assert.Contains("ExecuteScalarAsync", err.Message);
 
@@ -663,14 +639,14 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.ScalarException = new OperationCanceledException();
 
-        var (_, err) = await conn!.ExecuteScalarAsync("SELECT 1", null, null).ConfigureAwait(true);
+        var (_, err) = await conn!.ExecuteScalarAsync("SELECT 1", []).ConfigureAwait(true);
         Assert.True(err.Err());
 
-        var disableField = typeof(DbConnection).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var disableField = typeof(TestConn).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.True((bool)disableField.GetValue(conn)!);
 
         conn.Dispose();
@@ -685,7 +661,7 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var (count, err) = await conn!.ExecuteReaderAsync("SELECT 1", null, null, null!).ConfigureAwait(true);
+        var (count, err) = await conn!.ExecuteReaderAsync("SELECT 1", [], null!).ConfigureAwait(true);
         Assert.True(err.Err());
         Assert.Equal(0, count);
         Assert.Contains("must set eachRowFunc", err.Message);
@@ -700,16 +676,15 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.Reader = new FakeRawReader(3);  // 3 rows
 
         int rowsSeen = 0;
         var (count, err) = await conn!.ExecuteReaderAsync(
             "SELECT * FROM t",
-            null,
-            null,
-            _ => { rowsSeen++; return default; }).ConfigureAwait(true);
+            [],
+            (FakeRawReader _) => { rowsSeen++; return default; }).ConfigureAwait(true);
 
         Assert.False(err.Err());
         Assert.Equal(3, count);
@@ -725,11 +700,11 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.Reader = new FakeRawReader(0);
 
-        var (count, err) = await conn!.ExecuteReaderAsync("SELECT * FROM t", null, null, _ => default).ConfigureAwait(true);
+        var (count, err) = await conn!.ExecuteReaderAsync("SELECT * FROM t", [], (FakeRawReader _) => default).ConfigureAwait(true);
         Assert.False(err.Err());
         Assert.Equal(0, count);
 
@@ -743,16 +718,15 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.Reader = new FakeRawReader(5);
 
         int calls = 0;
         var (count, err) = await conn!.ExecuteReaderAsync(
             "SELECT * FROM t",
-            null,
-            null,
-            _ =>
+            [],
+            (FakeRawReader _) =>
             {
                 calls++;
                 return calls == 2 ? Error.WithLoc(77, "stop on row 2") : default;
@@ -768,39 +742,26 @@ public class DbConnectionPoolTests
     }
 
     [Fact]
-    public async Task ExecuteReaderAsync_WithBindFunc_CallsBindFunc()
+    public async Task ExecuteReaderAsync_WithParameters_SetsValuesOnCommand()
     {
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        bool bindCalled = false;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
+
+        var parameters = new SqlParam[]
+        {
+            new SqlParam { Name = "@id", DataType = MySqlDbType.Int32, Value = 5 },
+        };
         var (_, err) = await conn!.ExecuteReaderAsync(
             "SELECT * FROM t WHERE id=@id",
-            new Dictionary<string, MySqlDbType> { ["@id"] = MySqlDbType.Int32 },
-            cmd => { bindCalled = true; return default; },
-            _ => default).ConfigureAwait(true);
+            parameters,
+            (FakeRawReader _) => default).ConfigureAwait(true);
 
         Assert.False(err.Err());
-        Assert.True(bindCalled);
-
-        conn.Dispose();
-        pool.Close();
-    }
-
-    [Fact]
-    public async Task ExecuteReaderAsync_BindFuncReturnsError_PropagatesError()
-    {
-        var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
-        var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
-
-        var (_, err) = await conn!.ExecuteReaderAsync(
-            "SELECT 1",
-            null,
-            _ => Error.WithLoc(55, "bind error in reader"),
-            _ => default).ConfigureAwait(true);
-
-        Assert.True(err.Err());
-        Assert.Equal(55u, err.Code);
+        Assert.True(fakeConn.Command.SetValues.ContainsKey("@id"));
+        Assert.Equal(5, fakeConn.Command.SetValues["@id"]);
 
         conn.Dispose();
         pool.Close();
@@ -812,11 +773,11 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.ReaderException = MakeMySqlException("reader fail");
 
-        var (_, err) = await conn!.ExecuteReaderAsync("SELECT 1", null, null, _ => default).ConfigureAwait(true);
+        var (_, err) = await conn!.ExecuteReaderAsync("SELECT 1", [], (FakeRawReader _) => default).ConfigureAwait(true);
         Assert.True(err.Err());
         Assert.Contains("ExecuteReaderAsync", err.Message);
 
@@ -830,14 +791,14 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.ReaderException = new OperationCanceledException();
 
-        var (_, err) = await conn!.ExecuteReaderAsync("SELECT 1", null, null, _ => default).ConfigureAwait(true);
+        var (_, err) = await conn!.ExecuteReaderAsync("SELECT 1", [], (FakeRawReader _) => default).ConfigureAwait(true);
         Assert.True(err.Err());
 
-        var disableField = typeof(DbConnection).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var disableField = typeof(TestConn).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.True((bool)disableField.GetValue(conn)!);
 
         conn.Dispose();
@@ -850,15 +811,15 @@ public class DbConnectionPoolTests
         var (pool, _) = await MakePoolAsync().ConfigureAwait(true);
         var (conn, _) = await pool.GetAsync().ConfigureAwait(true);
 
-        var rawField = typeof(DbConnection).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var rawField = typeof(TestConn).GetField("_rawConn", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fakeConn = (FakeRawConnection)rawField.GetValue(conn)!;
         fakeConn.Command.PrepareException = new OperationCanceledException();
 
-        var (_, err) = await conn!.ExecuteReaderAsync("SELECT SLOW", null, null, _ => default).ConfigureAwait(true);
+        var (_, err) = await conn!.ExecuteReaderAsync("SELECT SLOW", [], (FakeRawReader _) => default).ConfigureAwait(true);
         Assert.True(err.Err());
         Assert.Contains("PrepareAsync", err.Message);
 
-        var disableField = typeof(DbConnection).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var disableField = typeof(TestConn).GetField("_disableReuse", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.True((bool)disableField.GetValue(conn)!);
 
         conn.Dispose();
@@ -877,6 +838,7 @@ public class DbConnectionPoolTests
         Assert.False(reader.GetBoolean(0));
         Assert.Equal(0, reader.GetInt32(0));
         Assert.Equal(0L, reader.GetInt64(0));
+        Assert.Equal(0UL, reader.GetUInt64(0));
         Assert.Equal(0f, reader.GetFloat(0));
         Assert.Equal(0.0, reader.GetDouble(0));
         Assert.Equal(0m, reader.GetDecimal(0));

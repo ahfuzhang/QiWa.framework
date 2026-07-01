@@ -2,9 +2,13 @@ namespace QiWa.Mysql;
 
 /// <summary>
 /// Abstracts the lifecycle of a raw database connection.
+/// Generic over <typeparamref name="TCmd"/> and <typeparamref name="TReader"/> so concrete types
+/// flow through without casting.
 /// Implemented by the real MySqlConnection wrapper and by fakes for unit testing.
 /// </summary>
-public interface IRawConnection : IDisposable
+public interface IRawConnection<TCmd, TReader> : IDisposable
+    where TCmd : IRawCommand<TReader>
+    where TReader : IRawReader
 {
     /// <summary>Gets or sets the connection string.</summary>
     string ConnectionString { get; set; }
@@ -22,5 +26,5 @@ public interface IRawConnection : IDisposable
     void Close();
 
     /// <summary>Creates a new command for this connection.</summary>
-    IRawCommand CreateCommand();
+    TCmd CreateCommand();
 }
