@@ -6,6 +6,10 @@ using MySqlConnector;
 
 using QiWa.Common;
 
+// todo: 压测测试
+// todo: 资源泄露的测试
+// todo: 并发测试
+
 /// <summary>
 /// Reserved for future per-call options (trace flags, query hints, etc.).
 /// </summary>
@@ -195,6 +199,11 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
 
     private void Close()
     {
+        foreach (var kv in _preparedStatements)
+        {
+            kv.Value.Dispose();
+        }
+        _preparedStatements.Clear();
         if (_rawConn != null)
         {
             // 彻底释放这个对象
@@ -204,6 +213,18 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
             _rawConn.Dispose();
             _rawConn = null!;
         }
+    }
+
+    /// <summary>
+    /// Clears all cached prepared statements. Call this if you want to free up memory or if you know the SQL statements will no longer be used.
+    /// </summary>
+    public void ClearPreparedStatements()
+    {
+        foreach (var kv in _preparedStatements)
+        {
+            kv.Value.Dispose();
+        }
+        _preparedStatements.Clear();
     }
 
     internal void CloseAfterDone()

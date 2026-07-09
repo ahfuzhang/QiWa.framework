@@ -8,7 +8,7 @@ This is the foundation library for the high-performance microservice framework Q
 * NuGet 地址：https://www.nuget.org/packages/QiWa.framework/
 
 ```bash
-dotnet add package QiWa.framework --version 0.6.0
+dotnet add package QiWa.framework --version 0.7.0
 ```
 
 ## 提供的组件
@@ -31,6 +31,8 @@ dotnet add package QiWa.framework --version 0.6.0
 * StringUtils
 * Syscall
   - 封装 write() 系统调用
+* Client
+  - 封装 http1 / http2 / grpc 的客户端
 
 ## 工程参数
 

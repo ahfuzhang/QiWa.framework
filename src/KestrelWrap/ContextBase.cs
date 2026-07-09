@@ -168,7 +168,7 @@ public abstract class ContextBase
     public CompressType CompressType;
     public bool IsGrpc;  // 请求来自 grpc 协议
     public RentedBuffer ResponseBuffer = new RentedBuffer(ServerConfig.DefaultRequestSize);
-    public string ContentType;  // 这个字段使用得非常频繁，所以保存下来
+    public string ContentType = "";  // 这个字段使用得非常频繁，所以保存下来
 
     // ThreadLocal
     internal static readonly ThreadLocal<Counters> _threadLocal =
