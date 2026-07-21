@@ -314,6 +314,7 @@ public class GlobalExceptionHandlerTests
 
             string errOutput = errWriter.ToString();
             Assert.Contains("Unhandled exception caught from test-source-no-logger", errOutput);
+            Assert.Contains($"thread: {Thread.CurrentThread.Name ?? "(unnamed)"}", errOutput);
             Assert.Contains("no-logger exception", errOutput);
             Assert.Equal(99, exitCodeReceived);
             Assert.Equal(1,  GetHasPrinted());

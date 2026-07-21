@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
+using System.Diagnostics;
 using QiWa.Common;
 using QiWa.Compress;
 using static QiWa.DebugUtils.Utils;
@@ -44,6 +45,8 @@ public partial class ThreadLocalLogger : IDisposable
     internal static readonly ThreadLocal<ThreadLocalLogger> _threadLocal =
         new ThreadLocal<ThreadLocalLogger>(() => new ThreadLocalLogger(), trackAllValues: true);
     public static ThreadLocalLogger Current => _threadLocal.Value!;
+    internal static Int64 ConcurrentHttpPostCount = 0;  // 记录并发的 http post task 的数量
+    private const int maxAllowedPostTaskCount = 20;  // todo: 未来修改为从参数配置
 
     public ThreadLocalLogger()
     {
@@ -153,6 +156,9 @@ public partial class ThreadLocalLogger : IDisposable
 
     private static readonly System.Net.Http.Headers.MediaTypeHeaderValue mediaType = new MediaTypeHeaderValue("application/json");
 
+    private const int defaultVlogsServerTimeoutMs = 1000 * 20;  // 发送到 vlogs 服务器的时候，最大超时时间为 20s
+
+    // 把日志通过 http jsonline 的方式发送给 VictoriaLogs 服务器
     private async Task<Error> writeJsonlineAsync(BufferWrapper wrapper)
     {
         System.Diagnostics.Debug.Assert(httpClient != null);
@@ -162,6 +168,13 @@ public partial class ThreadLocalLogger : IDisposable
         {
             return error;
         }
+        var sw = Stopwatch.StartNew();
+        var cnt = Interlocked.Read(ref ConcurrentHttpPostCount);
+        if (cnt >= maxAllowedPostTaskCount)
+        {
+            return QiWa.Common.Error.WithLoc(5, "maxAllowedPostTaskCount reached");
+        }
+        Interlocked.Increment(ref ConcurrentHttpPostCount);
         try
         {
             using var content = new ReadOnlyMemoryContent(new ReadOnlyMemory<byte>(compressed.Data!, 0, compressed.Length));
@@ -171,24 +184,40 @@ public partial class ThreadLocalLogger : IDisposable
             {
                 // see: https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient.postasync?view=net-10.0#system-net-http-httpclient-postasync(system-uri-system-net-http-httpcontent)
                 // todo: 这里应该使用 fire and forgot 的模型 => 上层使用了 fire and forgot 模型
-                using var response = await httpClient.PostAsync(Logger.Instance.JsonLineUrl, content, Logger.Instance.LoggerToken.Token).ConfigureAwait(false);
+                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(defaultVlogsServerTimeoutMs));  // 初始化的时候允许更长的超时时间
+                CancellationToken ct = cts.Token;
+                using var response = await httpClient.PostAsync(Logger.Instance.JsonLineUrl, content, ct).ConfigureAwait(false);
+                sw.Stop();
                 if (!response.IsSuccessStatusCode)
                 {
                     return QiWa.Common.Error.WithLoc(code: 1, message: $"response code={response.StatusCode}, url={Logger.Instance.JsonLineUrl}");
                 }
+                ThreadLocalLogger.Current.Info(
+                    Field.String("message"u8, $"send to log server success, {wrapper.Rented.Length} bytes"),
+                    Field.Int64("latency_us"u8, sw.Elapsed.Microseconds)
+                );
                 return default;
             }
-            catch (Exception ex) when (
-                ex is HttpRequestException ||
-                ex is OperationCanceledException
-            )
+            catch (HttpRequestException exHttp)
             {
-                return QiWa.Common.Error.WithLoc(code: 2, message: $"exception={ex.Message}, url={Logger.Instance.JsonLineUrl}");
+                return QiWa.Common.Error.WithLoc(code: 2, message: $"[HttpRequestException] exception={exHttp.Message}, url={Logger.Instance.JsonLineUrl}");
+            }
+            catch (OperationCanceledException exTimeout)
+            {
+                return QiWa.Common.Error.WithLoc(code: 3, message: $"[OperationCanceledException] exception={exTimeout.Message}, url={Logger.Instance.JsonLineUrl}");
+            }
+            catch (Exception ex)
+            {
+                // todo: 这里曾经发生了无法抓到的异常
+                // A Task's exception(s) were not observed either by Waiting on the Task or accessing its Exception property. 
+                // As a result, the unobserved exception was rethrown by the finalizer thread. (One or more errors occurred.
+                return QiWa.Common.Error.WithLoc(code: 4, message: $"unknown exception={ex.Message}, url={Logger.Instance.JsonLineUrl}");
             }
         }
         finally
         {
             compressed.Dispose();
+            Interlocked.Decrement(ref ConcurrentHttpPostCount);
         }
     }
 
@@ -202,11 +231,13 @@ public partial class ThreadLocalLogger : IDisposable
                 var err = await writeJsonlineAsync(wrapper).ConfigureAwait(false);
                 if (!err.Err())
                 {
+                    // 没有错误，说明已经成功发送到服务器端了
                     return;
                 }
                 Logger.LogDiagnosticsError(null,
                     $"writeJsonline fail: code={err.Code}, msg={err.Message}");
             }
+            // 这部分代码仅用于单元测试
             var outputCapture = TestOutputCapture;
             if (outputCapture != null)
             {

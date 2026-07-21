@@ -89,14 +89,18 @@ public static class GlobalExceptionHandler
         }
 
         const int exitCode = 99;
+        // Prompt intent: 异常日志需要记录执行异常回调的线程名称，便于定位异常来源。
+        string threadName = Thread.CurrentThread.Name ?? "(unnamed)";
 
         if (ConsoleLogger.Logger.Instance != null)
         {
+            // todo: 这里应该增加配置，决定是退出还是继续！
             // 日志库已初始化，使用结构化日志输出
             var log = ConsoleLogger.Logger.Get();
             log.Fatal(
                 ConsoleLogger.Field.String("event"u8, "unhandled_exception"),
                 ConsoleLogger.Field.String("source"u8, source),
+                ConsoleLogger.Field.String("thread_name"u8, threadName),
                 ConsoleLogger.Field.String("error"u8, exception?.ToString() ?? "(null exception)"));
             ConsoleLogger.Logger.Return(log);
             ConsoleLogger.Logger.Shutdown();
@@ -104,7 +108,8 @@ public static class GlobalExceptionHandler
         else
         {
             // 日志库尚未初始化，回退到标准错误输出
-            Console.Error.WriteLine($"[{DateTimeOffset.UtcNow:u}] Unhandled exception caught from {source}");
+            Console.Error.WriteLine(
+                $"[{DateTimeOffset.UtcNow:u}] Unhandled exception caught from {source}; thread: {threadName}");
             if (exception is null)
             {
                 Console.Error.WriteLine("Exception object was null.");
