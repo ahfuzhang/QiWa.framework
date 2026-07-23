@@ -126,6 +126,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
                         Console.WriteLine($"{{\"code\":{err.Code},\"message\":\"Idle and ping fail, {err.Message}\"}}");
                         continue;
                     }
+                    Console.WriteLine($"{{\"message\":\"ping success, ts={conn.lastUseTimestamp}\"}}");
                 }
                 conn.lastUseTimestamp = now;  // 更新最后使用时间，便于判断 Idle 太长时间的连接
                 return (conn, default);
@@ -163,6 +164,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
             return (null, err1);
         }
         Interlocked.Increment(ref _count);
+        Console.WriteLine("{\"message\":\"create a new connection\"}");
         return (newConn, default);
     }
 
