@@ -1,0 +1,23 @@
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+namespace QiWa.Mysql;
+
+enum ErrorCodes : Int32
+{
+    Success = 0,
+    CreateConnectionMysqlExceptionError = 3306,
+    CreateConnectionTimeoutError = 3307,
+    CreateConnectionIOExceptionError = 3308,
+    CreateConnectionUnknownExceptionError = 3309,
+    PingMysqlExceptionError = 3310,
+    PingTimeoutError = 3311,
+    PingIOExceptionError = 3312,
+    PingUnknownExceptionError = 3313,
+    PrepareMysqlExceptionError = 3314,
+    PrepareTimeoutError = 3315,
+    PrepareIOExceptionError = 3316,
+    PrepareUnknownExceptionError = 3317,
+    ExecuteMySqlExceptionError = 3318,
+    ExecuteTimeoutError = 3319,
+    ExecuteIOExceptionError = 3320,
+    ExecuteUnknownExceptionError = 3321,
+}

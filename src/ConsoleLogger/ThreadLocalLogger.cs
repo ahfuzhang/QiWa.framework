@@ -2,11 +2,11 @@
 namespace QiWa.ConsoleLogger;
 
 using System;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
-using System.Diagnostics;
 using QiWa.Common;
 using QiWa.Compress;
 using static QiWa.DebugUtils.Utils;
