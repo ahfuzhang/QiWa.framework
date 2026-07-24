@@ -2,6 +2,7 @@
 namespace QiWa.Metrics;
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using QiWa.Common;
 
@@ -25,6 +26,7 @@ public interface IMetricFormatter
     public void ToPrometheusText(ref RentedBuffer dst);
 }
 
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)]
 public class MetricsBase : IMetricFormatter
 {
     /// <summary>
