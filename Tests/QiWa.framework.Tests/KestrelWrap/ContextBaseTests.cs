@@ -354,7 +354,7 @@ public class ContextBaseTests
     }
 
     [Fact]
-    public void Encode_UnknownSerializeType_Throws()
+    public void Encode_UnknownSerializeType_ReturnsError()
     {
         using var ctx = CreateInitializedContext(CreateHttpContext());
         var response = new TestResponseMessage
@@ -363,9 +363,11 @@ public class ContextBaseTests
             ProtobufPayload = new byte[] { 1 },
         };
 
-        Exception ex = Assert.Throws<Exception>(() => ctx.Encode(ref response));
+        (byte[]? bytes, Error err) = ctx.Encode(ref response);
 
-        Assert.Contains("impossible error", ex.Message);
+        Assert.Null(bytes);
+        Assert.True(err.Err());
+        Assert.Contains("not supported SerializeType", err.Message);
     }
 
     [Fact]

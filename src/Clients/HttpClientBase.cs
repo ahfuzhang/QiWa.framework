@@ -97,21 +97,19 @@ public class HttpClientContextBase : QiWa.Common.IResettable
         // gzip
         if ((flags & (UInt64)(RequestFlags.UseGzip)) != 0)
         {
-            int reserve = 0;
+            CompressedReqBuffer.Extend(reqBytes.Length + GrpcHeaderSize);  // grpc 的请求头部 5 字节
             if (isGrpc)
             {
-                reserve = GrpcHeaderSize;  // grpc 的请求头部 5 字节
+                CompressedReqBuffer.Length = GrpcHeaderSize;
+                CompressedReqBuffer.Data[0] = 1;  // 压缩标志
             }
-            var (compressed, err) = GzipCompressor.Compress(reqBytes.AsSpan(), reserve);
+            var err = GzipCompressor.Compress(ref CompressedReqBuffer, reqBytes.AsSpan());
             if (err.Err())
             {
                 return (null, Error.WithLoc((uint)ClientErrorCode.GzipCompressError, $"GzipCompressor.Compress error: code={err.Code}, message={err.Message}"));
             }
-            CompressedReqBuffer.Dispose();
-            CompressedReqBuffer = compressed;
             if (isGrpc)
             {
-                CompressedReqBuffer.Data[0] = 1;  // 压缩标志
                 UInt32 n = (UInt32)(CompressedReqBuffer.Length - GrpcHeaderSize);
                 CompressedReqBuffer.Data[1] = (byte)(n >> 24);
                 CompressedReqBuffer.Data[2] = (byte)((n >> 16) & 0xFF);
@@ -120,6 +118,7 @@ public class HttpClientContextBase : QiWa.Common.IResettable
             }
             return (CompressedReqBuffer.Data[..CompressedReqBuffer.Length], default);
         }
+        // 不压缩
         if (isGrpc)
         {
             GrpcReqBuffer.Extend(reqBytes.Length + GrpcHeaderSize);
@@ -179,13 +178,12 @@ public class HttpClientContextBase : QiWa.Common.IResettable
         }
         if (ct == CompressType.Gzip)
         {
-            var (decompressed, err) = GzipCompressor.Uncompress(body.AsSpan());
+            DecompressedRspBuffer.Extend(body.Length * 2);  // 假定压缩比达到 50%
+            Error err = GzipCompressor.Uncompress(ref DecompressedRspBuffer, body.AsSpan());
             if (err.Err())
             {
                 return (null, Error.WithLoc((uint)ClientErrorCode.GzipDecompressError, $"code={err.Code}, message={err.Message}"));
             }
-            DecompressedRspBuffer.Dispose();
-            DecompressedRspBuffer = decompressed;
             return (DecompressedRspBuffer.Data[..DecompressedRspBuffer.Length], default);
         }
         return (null, Error.WithLoc((uint)ClientErrorCode.CompressTypeNotSupportError, "unknown compress type"));

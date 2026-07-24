@@ -79,7 +79,8 @@ public class PrometheusMetricAttributeTests
 
         Assert.Contains("api_latency_sum 0\n", text);
         Assert.Contains("api_latency_count 0\n", text);
-        Assert.DoesNotContain("_bucket", text);
+        // 即使没有请求，也应始终输出全部桶行（含 +Inf），保证 histogram_quantile 插值下界正确。
+        Assert.Contains("api_latency_bucket{le=\"+Inf\"} 0\n", text);
     }
 
     [Fact]

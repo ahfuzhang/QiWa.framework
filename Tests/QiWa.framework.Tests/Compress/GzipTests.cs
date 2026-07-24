@@ -267,59 +267,62 @@ public class GzipTests
     }
 
     /// <summary>
-    /// 通过反射访问私有 ThreadStatic 字段 _compressStream，
-    /// 直接测试 RentedBufferWriteStream 的各个属性和不支持操作，
-    /// 覆盖正常使用路径无法触达的代码行。
+    /// 意图：验证替换 Stream 实现后，预留的 gRPC 头部空间仍保留在 gzip 帧前方。
     /// </summary>
     [Fact]
-    public void TestGzip_RentedBufferWriteStream_AllMembers()
+    public void TestGzip_Compress_PreservesReservedPrefix()
     {
-        // 先调用 Compress 确保当前线程的 _compressStream 已初始化
-        var (initBuf, initErr) = GzipCompressor.Compress(System.Text.Encoding.UTF8.GetBytes("init"));
-        initBuf.Dispose();
-        Assert.False(initErr.Err());
+        const int reserve = 5;
+        byte[] payload = System.Text.Encoding.UTF8.GetBytes("reserved prefix");
+        var (compressed, err) = GzipCompressor.Compress(payload, reserve);
+        try
+        {
+            Assert.False(err.Err(), $"Compress failed: {err.Message}");
+            Assert.True(compressed.Length > reserve);
 
-        // 通过反射获取私有 ThreadStatic 字段
-        var field = typeof(GzipCompressor).GetField(
-            "_compressStream",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        Assert.NotNull(field);
+            var (uncompressed, uncompressErr) = GzipCompressor.Uncompress(compressed.AsSpan()[reserve..]);
+            try
+            {
+                Assert.False(uncompressErr.Err(), $"Uncompress failed: {uncompressErr.Message}");
+                Assert.Equal(payload, uncompressed.AsSpan().ToArray());
+            }
+            finally
+            {
+                uncompressed.Dispose();
+            }
+        }
+        finally
+        {
+            compressed.Dispose();
+        }
+    }
 
-        var stream = field.GetValue(null) as System.IO.Stream;
-        Assert.NotNull(stream);
+    /// <summary>
+    /// 意图：验证两个 ref RentedBuffer 接口会保留既有前缀并直接追加完整 gzip 数据块。
+    /// </summary>
+    [Fact]
+    public void TestGzip_RefBuffers_PreservePrefixAndRoundTrip()
+    {
+        byte[] payload = System.Text.Encoding.UTF8.GetBytes("ref buffer payload");
+        var compressed = new QiWa.Common.RentedBuffer(1);
+        var uncompressed = new QiWa.Common.RentedBuffer(1);
+        try
+        {
+            compressed.Append(0xA1);
+            var compressErr = GzipCompressor.Compress(ref compressed, payload);
+            Assert.False(compressErr.Err(), $"Compress failed: {compressErr.Message}");
 
-        // 调用私有 Reset(int) 方法，重新准备缓冲区
-        var resetMethod = stream.GetType().GetMethod(
-            "Reset",
-            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(resetMethod);
-        resetMethod.Invoke(stream, new object[] { 64 });
-
-        // 验证只读属性
-        Assert.False(stream.CanRead);   // line 44
-        Assert.False(stream.CanSeek);   // line 45
-        Assert.True(stream.CanWrite);   // line 46 (已被 GZipStream 覆盖，此处再次确认)
-        Assert.Equal(0L, stream.Length);    // line 47: Reset 后 Buffer.Length = 0
-        Assert.Equal(0L, stream.Position);  // line 48 getter
-
-        // Flush 是空操作，不应抛异常（line 49）
-        stream.Flush();
-
-        // Write(ReadOnlySpan<byte>) 重载（lines 62-66）
-        stream.Write(new byte[] { 0xAA, 0xBB, 0xCC }.AsSpan());
-        Assert.Equal(3L, stream.Length);
-
-        // 不支持的操作均应抛出 NotSupportedException
-        Assert.Throws<NotSupportedException>(() => stream.Read(new byte[1], 0, 1));           // line 50
-        Assert.Throws<NotSupportedException>(() => stream.Seek(0, System.IO.SeekOrigin.Begin)); // line 51
-        Assert.Throws<NotSupportedException>(() => stream.SetLength(0));                       // line 52
-        Assert.Throws<NotSupportedException>(() => { stream.Position = 0; });                  // line 48 setter
-
-        // 清理缓冲区，避免内存泄漏
-        var disposeBufferMethod = stream.GetType().GetMethod(
-            "DisposeBuffer",
-            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-        disposeBufferMethod?.Invoke(stream, null);
+            uncompressed.Append(0xB2);
+            var uncompressErr = GzipCompressor.Uncompress(ref uncompressed, compressed.AsSpan()[1..]);
+            Assert.False(uncompressErr.Err(), $"Uncompress failed: {uncompressErr.Message}");
+            Assert.Equal(0xB2, uncompressed.AsSpan()[0]);
+            Assert.Equal(payload, uncompressed.AsSpan()[1..].ToArray());
+        }
+        finally
+        {
+            compressed.Dispose();
+            uncompressed.Dispose();
+        }
     }
 
     /// <summary>

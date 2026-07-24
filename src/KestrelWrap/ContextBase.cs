@@ -3,6 +3,7 @@ namespace QiWa.KestrelWrap;
 
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Microsoft.AspNetCore.Http;
 using QiWa.Common;
@@ -33,55 +34,56 @@ public enum CompressType
 /// <summary>
 /// 整个框架的基础的计数器
 /// </summary>
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)]
 public class Counters : QiWa.Metrics.MetricsBase, QiWa.Common.IResettable
 {
     // 总请求数
     // 交给子类去累加
-    [PrometheusMetric("http_request_total", "framework=\"QiWa\"")]
+    [PrometheusMetric("http_request_total", @"framework=""QiWa""")]
     public UInt64 HttpRequestTotal;
 
-    // 错误：错误请求数
+    // 错误量：错误请求数
     // 交给子类去累加
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"bad request\"")]
     public UInt64 HttpBadRequestTotal;
 
-    // 错误：初始化失败数 (目前的逻辑，不可能触发这个错误)
+    // 错误量：初始化失败数 (目前的逻辑，不可能触发这个错误)
     //[PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"init error\"")]
     //public UInt64 InitErrorsTotal;
 
-    // 错误: 读数据错误次数
+    // 错误量: 读数据错误次数
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"red request error\"")]
     public UInt64 ReadRequestErrorsTotal;
 
-    // 错误: 编码错误
+    // 错误量: 编码错误
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"encode error\"")]
     public UInt64 EncodeErrorsTotal;
 
-    // 错误: 发送数据错误
+    // 错误量: 发送数据错误
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"send error\"")]
     public UInt64 SendErrorsTotal;
 
-    // 错误: 找不到对应路径
+    // 错误量: 找不到对应路径
     // 交给子类去累加
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"404\",err_type=\"not found error\"")]
     public UInt64 HttpNotFoundErrorsTotal;
 
-    // 错误: json 解码错误
+    // 错误量: json 解码错误
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"json decode error\"")]
     public UInt64 HttpJsonDecodeErrorsTotal;
 
-    // 错误: protobuf 解码错误
+    // 错误量: protobuf 解码错误
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"protobuf decode error\"")]
     public UInt64 HttpProtobufDecodeErrorsTotal;
 
-    // 错误: 未知编码格式错误
+    // 错误量: 未知编码格式错误
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"400\",err_type=\"format error\"")]
     public UInt64 HttpUnknownFormatErrorsTotal;
 
     //[PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"413\",err_type=\"content too large error\"")]
     //public UInt64 ContentTooLargeErrorsTotal;
 
-    // 错误: 内部错误(未区分)
+    // 错误量: 内部错误(未区分)
     [PrometheusMetric("errors_total", "framework=\"QiWa\",status_code=\"500\",err_type=\"internal error\"")]
     public UInt64 HttpInternalErrorsTotal;
 
@@ -356,6 +358,15 @@ public abstract class ContextBase
 
     // public abstract TRequest GetRequest<TRequest>() where TRequest : struct;
 
+    /// <summary>
+    /// 发送响应内容前，进行数据序列化和压缩
+    /// </summary>
+    /// <typeparam name="TResponse"> proto 文件中定义的 rpc 的响应类型</typeparam>
+    /// <param name="rsp">代表响应的 struct 的引用</param>
+    /// <returns>
+    ///   * byte[]? 编码后缓冲区的 slice
+    ///   * Error 错误对象
+    /// </returns>
     public (byte[]?, Error) Encode<TResponse>(ref readonly TResponse rsp) where TResponse : struct, QiWa.Common.IEncoder
     {
         Debug.Assert(ResponseBuffer.Length == 0);
@@ -376,7 +387,7 @@ public abstract class ContextBase
                 Interlocked.Add(ref Counters.ProtobufResponseBytesTotal, (ulong)this.ResponseBuffer.Length);
                 break;
             default:
-                throw new Exception("impossible error");
+                return (null, Error.WithLoc(1, $"not supported SerializeType: {this.SerializeType}"));
         }
         ReadOnlySpan<byte> data = IsGrpc ? this.ResponseBuffer.Data.AsSpan(GrpcHeaderLength, this.ResponseBuffer.Length - GrpcHeaderLength) : this.ResponseBuffer.AsSpan();  // 序列化后的数据
         byte[]? responseBytes;
@@ -399,20 +410,19 @@ public abstract class ContextBase
             {
                 this.HttpContext!.Response.Headers.ContentEncoding = "zstd";
             }
-            responseBytes = this.RequestData.AsSpan().ToArray();
+            responseBytes = this.RequestData.Data[..this.RequestData.Length];
             Interlocked.Add(ref Counters.ZstdResponseBytesTotal, (ulong)responseBytes.Length);
             compressedFlag = 1;
         }
         else if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
         {
-            var (compressed, err) = QiWa.Compress.GzipCompressor.Compress(data, reserve: IsGrpc ? GrpcHeaderLength : 0);
+            this.RequestData.Length = IsGrpc ? GrpcHeaderLength : 0;  // 重用临时缓冲区
+            Error err = QiWa.Compress.GzipCompressor.Compress(ref this.RequestData, data);
             if (err.Err())
             {
                 Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
                 return (null, err);
             }
-            this.RequestData.Dispose();
-            this.RequestData = compressed;
             if (IsGrpc)
             {
                 this.HttpContext!.Response.Headers.GrpcEncoding = "gzip";
@@ -421,13 +431,13 @@ public abstract class ContextBase
             {
                 this.HttpContext!.Response.Headers.ContentEncoding = "gzip";
             }
-            responseBytes = this.RequestData.AsSpan().ToArray();
+            responseBytes = this.RequestData.Data[..this.RequestData.Length];
             Interlocked.Add(ref Counters.GzipResponseBytesTotal, (ulong)responseBytes.Length);
             compressedFlag = 1;
         }
         else
         {
-            responseBytes = this.ResponseBuffer.AsSpan().ToArray();
+            responseBytes = this.ResponseBuffer.Data[..this.ResponseBuffer.Length];
             Interlocked.Add(ref Counters.NotCompressedResponseBytesTotal, (ulong)responseBytes.Length);
         }
         //
@@ -553,7 +563,7 @@ public abstract class ContextBase
             this.HttpContext!.Response.StatusCode = 400;
             return (null, Error.WithLoc(400, "grpc frame length mismatch"));
         }
-        byte[] bytes = RawRequest.Data.AsSpan(5, (int)messageLength).ToArray();
+        byte[] bytes = RawRequest.Data[5..(int)messageLength];
         if (compressType == 0)
         {
             return (bytes, default);
@@ -572,21 +582,22 @@ public abstract class ContextBase
                 this.HttpContext.Response.StatusCode = 400;
                 return (null, Error.WithLoc(code: 400, message: "Failed to decompress zstd body: " + err.Message));
             }
-            bytes = RequestData.AsSpan().ToArray();
+            bytes = RequestData.Data[..RequestData.Length];
             Interlocked.Add(ref Counters.ZstdDecompressedRequestBytesTotal, (ulong)bytes.Length);
         }
         else if (grpcEncoding.Contains("gzip", StringComparison.CurrentCulture))
         {
-            var (gzipBuf, gzipErr) = GzipCompressor.Uncompress(bytes);
+            Debug.Assert(RequestData.Data != null);
+            Debug.Assert(RequestData.Length == 0);
+            // 重用 buffer，避免每次都 Rent
+            var gzipErr = GzipCompressor.Uncompress(ref RequestData, bytes);
             if (gzipErr.Err())
             {
                 Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
                 this.HttpContext.Response.StatusCode = 400;
                 return (null, Error.WithLoc(code: 400, message: "Failed to decompress gzip body: " + gzipErr.Message));
             }
-            RequestData.Dispose();
-            RequestData = gzipBuf;
-            bytes = RequestData.AsSpan().ToArray();
+            bytes = RequestData.Data[..RequestData.Length];
             Interlocked.Add(ref Counters.GzipDecompressedRequestBytesTotal, (ulong)bytes.Length);
         }
         else
@@ -602,7 +613,7 @@ public abstract class ContextBase
     {
         // 处理压缩: 读 Content-Encoding，支持 gzip 和 zstd 压缩格式
         var contentEncoding = this.HttpContext!.Request.Headers.ContentEncoding.ToString();
-        byte[] reqBytes = RawRequest.AsSpan().ToArray();
+        byte[] reqBytes = RawRequest.Data[..RawRequest.Length];
         if (contentEncoding == "")
         {
             return (reqBytes, default);
@@ -619,21 +630,22 @@ public abstract class ContextBase
                 this.HttpContext.Response.StatusCode = 400;
                 return (null, Error.WithLoc(code: 400, message: "Failed to decompress zstd body: " + err.Message));
             }
-            reqBytes = RequestData.AsSpan().ToArray();
+            reqBytes = RequestData.Data[..RequestData.Length];
             Interlocked.Add(ref Counters.ZstdDecompressedRequestBytesTotal, (ulong)reqBytes.Length);
         }
         else if (contentEncoding.Contains("gzip", StringComparison.CurrentCulture))
         {
-            var (gzipBuf, gzipErr) = GzipCompressor.Uncompress(RawRequest.AsSpan());
+            Debug.Assert(RequestData.Data != null);
+            Debug.Assert(RequestData.Length == 0);
+            // 重用 buffer，避免每次都 Rent
+            var gzipErr = GzipCompressor.Uncompress(ref RequestData, RawRequest.AsSpan());
             if (gzipErr.Err())
             {
                 Interlocked.Increment(ref Counters.HttpInternalErrorsTotal);
                 this.HttpContext.Response.StatusCode = 400;
                 return (null, Error.WithLoc(code: 400, message: "Failed to decompress gzip body: " + gzipErr.Message));
             }
-            RequestData.Dispose();
-            RequestData = gzipBuf;
-            reqBytes = RequestData.AsSpan().ToArray();
+            reqBytes = RequestData.Data[..RequestData.Length];
             Interlocked.Add(ref Counters.GzipDecompressedRequestBytesTotal, (ulong)reqBytes.Length);
         }
         else

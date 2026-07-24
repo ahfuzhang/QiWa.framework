@@ -14,7 +14,7 @@
     <dependencies>
       <group targetFramework="net8.0">
         <dependency id="Microsoft.Extensions.Logging" version="10.0.6" />
-        <dependency id="OpenTelemetry" version="1.15.0" />
+        <dependency id="OpenTelemetry" version="1.15.3" />
         <dependency id="OpenTelemetry.Extensions.Hosting" version="1.15.0" />
         <dependency id="OpenTelemetry.Instrumentation.AspNetCore" version="1.15.0" />
         <dependency id="OpenTelemetry.Instrumentation.Http" version="1.15.0" />

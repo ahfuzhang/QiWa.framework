@@ -1,3 +1,6 @@
+* 2026-07-24:  v0.9.0
+  - bug fix:
+    - 使用库 LibDeflate 代替 dotnet 自带的流式 gzip 库
 * 2026-07-23:  v0.8.0
   - bug fix:
     * mysql connection pool: 捕获 IOException 的异常；增加 Idle time 的判断

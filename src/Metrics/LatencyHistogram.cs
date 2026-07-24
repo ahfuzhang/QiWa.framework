@@ -102,83 +102,87 @@ public struct LatencyHistogram : IMetricFormatter
     /// 将 histogram 数据格式化为 Prometheus text format，追加写入 buf。
     /// 输出累积桶计数（le=...）、{MetricName}_sum 和 {MetricName}_count。
     /// </summary>
-    public readonly void ToPrometheusText(ref RentedBuffer buf)
+    public readonly void ToPrometheusText(ref RentedBuffer dst)
     {
         bool hasLabels = !string.IsNullOrEmpty(Labels);
 
+        // 输出 HELP / TYPE 元数据行，声明该 metric family 为 histogram 类型，
+        // 与 Prometheus text exposition format 对齐（否则会被当作 untyped）。
+        dst.Append("# HELP "u8);
+        AppendMetricName(ref dst, MetricName);
+        dst.Append(" latency distribution in microseconds\n"u8);
+        dst.Append("# TYPE "u8);
+        AppendMetricName(ref dst, MetricName);
+        dst.Append(" histogram\n"u8);
+
         // 对应“类似位置的字符串常量进行修改，避免 utf-16 到 utf-8 的转换”：
         // 常量直接写为 UTF-8 字面量或单字节，避免走 Append(string) 的编码路径。
-        // 输出各有限上界桶（累积计数）
-        // 注意：必须先累加再判断是否跳过输出，保证 cumulative 始终单调递增；
-        // 跳过输出空桶（le= 行消失对大多数客户端无害，但需保持 cumulative 正确）。
+        // 输出各有限上界桶（累积计数）。
+        // 必须始终输出全部桶（即使计数为 0），否则 Prometheus 的 histogram_quantile
+        // 会把第一个出现的桶误当作插值下界为 0 的起始桶，导致跳过的低延迟桶造成分位数插值偏差。
         ReadOnlySpan<long> boundaries = Boundaries;
         ulong cumulative = 0;
         for (int i = 0; i < boundaries.Length; i++)
         {
             cumulative += _buckets[i];
-            if (cumulative == 0)
-            {
-                continue;
-            }
-            AppendMetricName(ref buf, MetricName);
-            buf.Append("_bucket{le=\""u8);
-            buf.Append(boundaries[i].ToString(System.Globalization.CultureInfo.InvariantCulture));
+            AppendMetricName(ref dst, MetricName);
+            dst.Append("_bucket{le=\""u8);
+            dst.Append(boundaries[i].ToString(System.Globalization.CultureInfo.InvariantCulture));
             if (hasLabels)
             {
-                buf.Append("\","u8);
-                buf.Append(Labels);
-                buf.Append((byte)'}');
+                dst.Append("\","u8);
+                dst.Append(Labels);
+                dst.Append((byte)'}');
             }
             else
             {
-                buf.Append((byte)'"');
-                buf.Append((byte)'}');
+                dst.Append((byte)'"');
+                dst.Append((byte)'}');
             }
-            buf.Append((byte)' ');
-            buf.Append(cumulative);
-            buf.Append((byte)'\n');
+            dst.Append((byte)' ');
+            dst.Append(cumulative);
+            dst.Append((byte)'\n');
         }
-        if (_buckets[BucketCount - 1] > 0)
         {
-            // 输出 +Inf 桶（累积所有请求）
+            // 输出 +Inf 桶（累积所有请求），同样始终输出
             cumulative += _buckets[BucketCount - 1];
-            AppendMetricName(ref buf, MetricName);
-            buf.Append("_bucket{le=\"+Inf\""u8);
+            AppendMetricName(ref dst, MetricName);
+            dst.Append("_bucket{le=\"+Inf\""u8);
             if (hasLabels)
             {
-                buf.Append((byte)',');
-                buf.Append(Labels);
+                dst.Append((byte)',');
+                dst.Append(Labels);
             }
-            buf.Append("} "u8);
-            buf.Append(cumulative);
-            buf.Append((byte)'\n');
+            dst.Append("} "u8);
+            dst.Append(cumulative);
+            dst.Append((byte)'\n');
         }
 
         // 输出延迟总量（微秒）
-        AppendMetricName(ref buf, MetricName);
-        buf.Append("_sum"u8);
+        AppendMetricName(ref dst, MetricName);
+        dst.Append("_sum"u8);
         if (hasLabels)
         {
-            buf.Append((byte)'{');
-            buf.Append(Labels);
-            buf.Append((byte)'}');
+            dst.Append((byte)'{');
+            dst.Append(Labels);
+            dst.Append((byte)'}');
         }
-        buf.Append((byte)' ');
-        buf.Append(LatencyUsTotal);
-        buf.Append((byte)'\n');
+        dst.Append((byte)' ');
+        dst.Append(LatencyUsTotal);
+        dst.Append((byte)'\n');
 
         // 输出请求总次数
-        AppendMetricName(ref buf, MetricName);
-        buf.Append("_count"u8);
+        AppendMetricName(ref dst, MetricName);
+        dst.Append("_count"u8);
         if (hasLabels)
         {
-            buf.Append((byte)'{');
-            buf.Append(Labels);
-            buf.Append((byte)'}');
+            dst.Append((byte)'{');
+            dst.Append(Labels);
+            dst.Append((byte)'}');
         }
-        buf.Append((byte)' ');
-        buf.Append(RequestCount);
-        buf.Append((byte)'\n');
+        dst.Append((byte)' ');
+        dst.Append(RequestCount);
+        dst.Append((byte)'\n');
     }
 
     /// <summary>

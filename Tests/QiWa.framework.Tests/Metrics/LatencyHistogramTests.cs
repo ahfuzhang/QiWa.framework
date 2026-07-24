@@ -193,16 +193,33 @@ public class LatencyHistogramTests
     // ---- ToPrometheusText 测试 ----
 
     [Fact]
-    public void ToPrometheusText_EmptyHistogram_OnlyOutputsSumAndCount()
+    public void ToPrometheusText_EmptyHistogram_AllBucketsPresentWithZeroCount()
     {
         var h = new LatencyHistogram();
         h.MetricName = "empty_metric";
         string output = ToPrometheusString(ref h);
 
-        // 无请求时不应输出任何桶行
-        Assert.DoesNotContain("_bucket", output);
+        // 即使没有请求，也必须输出全部 34 个桶行（含 +Inf），避免 Prometheus
+        // histogram_quantile 把首个出现的桶误判为插值下界为 0 的起始桶。
+        int bucketLines = output.Split('\n').Count(l => l.Contains("empty_metric_bucket{le="));
+        Assert.Equal(LatencyHistogram.BucketCount, bucketLines);
+        Assert.Contains("empty_metric_bucket{le=\"150\"} 0\n", output);
+        Assert.Contains("empty_metric_bucket{le=\"+Inf\"} 0\n", output);
         Assert.Contains("empty_metric_sum 0\n", output);
         Assert.Contains("empty_metric_count 0\n", output);
+    }
+
+    [Fact]
+    public void ToPrometheusText_EmitsHelpAndTypeLines()
+    {
+        var h = new LatencyHistogram();
+        h.MetricName = "meta_test";
+        string output = ToPrometheusString(ref h);
+
+        Assert.Contains("# HELP meta_test ", output);
+        Assert.Contains("# TYPE meta_test histogram\n", output);
+        // 元数据行必须出现在第一条样本行之前
+        Assert.True(output.IndexOf("# TYPE meta_test histogram") < output.IndexOf("meta_test_bucket"));
     }
 
     [Fact]
@@ -404,7 +421,7 @@ public class LatencyHistogramTests
     }
 
     [Fact]
-    public void Reset_ClearsBuckets_ToPrometheusTextShowsNoBucketLines()
+    public void Reset_ClearsBuckets_ToPrometheusTextShowsAllBucketsAtZero()
     {
         var h = new LatencyHistogram();
         h.MetricName = "reset_test";
@@ -414,7 +431,9 @@ public class LatencyHistogramTests
         h.Reset();
 
         string output = ToPrometheusString(ref h);
-        Assert.DoesNotContain("_bucket", output);
+        int bucketLines = output.Split('\n').Count(l => l.Contains("reset_test_bucket{le="));
+        Assert.Equal(LatencyHistogram.BucketCount, bucketLines);
+        Assert.Contains("reset_test_bucket{le=\"+Inf\"} 0\n", output);
         Assert.Contains("reset_test_sum 0\n", output);
         Assert.Contains("reset_test_count 0\n", output);
     }
