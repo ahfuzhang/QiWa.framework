@@ -117,6 +117,11 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
                 Int64 now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 if (now - conn.lastUseTimestamp > maxIdleSeconds)
                 {
+                    // AOT 版本总是发生崩溃，因为 IDle 的连接一定不能再使用了。
+                    // 怀疑是 AOT + MysqlConnector 共同引发的问题
+                    // 该问题修复起来太困难了，因此直接丢失 Idel 的连接。
+
+                    /*
                     err = await conn.PingAsync(ct).ConfigureAwait(false);
                     if (err.Err())
                     {
@@ -127,6 +132,10 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
                         continue;
                     }
                     Console.WriteLine($"{{\"message\":\"ping success, ts={conn.lastUseTimestamp}\"}}");
+                    */
+                    conn.CloseAfterDone();
+                    continue;
+                    // 为了解决崩溃问题：只要连接变成 Idle，就丢弃
                 }
                 conn.lastUseTimestamp = now;  // 更新最后使用时间，便于判断 Idle 太长时间的连接
                 return (conn, default);

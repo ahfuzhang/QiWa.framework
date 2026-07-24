@@ -1,0 +1,42 @@
+warning: File "/usr/lib/x86_64-linux-gnu/libthread_db.so.1" auto-loading has been declined by your `auto-load safe-path' set to "$debugdir:$datadir/auto-load".
+To enable execution of this file add
+	add-auto-load-safe-path /usr/lib/x86_64-linux-gnu/libthread_db.so.1
+line to your configuration file "/config/.config/gdb/gdbinit".
+To completely disable this security protection add
+	set auto-load safe-path /
+line to your configuration file "/config/.config/gdb/gdbinit".
+For more information about this security protection see the
+"Auto-loading safe path" section in the GDB manual.  E.g., run from the shell:
+	info "(gdb)Auto-loading safe path"
+warning: Unable to find libthread_db matching inferior's thread library, thread debugging will not be available.
+
+Thread 34 ".NET TP Worker" received signal SIGSEGV, Segmentation fault.
+[Switching to LWP 120]
+S_P_CoreLib_System_Runtime_TypeCast__IsInstanceOfClass (pTargetType=..., obj=...) at /_/src/runtime/src/coreclr/nativeaot/Runtime.Base/src/System/Runtime/TypeCast.cs:192
+warning: 192	/_/src/runtime/src/coreclr/nativeaot/Runtime.Base/src/System/Runtime/TypeCast.cs: No such file or directory
+
+===== Program status =====
+Last stopped for thread 34 (LWP 120).
+	Using the running image of child process 76.
+Program stopped at 0x9f91e9.
+It stopped with signal SIGSEGV, Segmentation fault.
+
+===== Crashed thread =====
+[Current thread is 34 (LWP 120)]
+
+===== Crash backtrace =====
+#0  S_P_CoreLib_System_Runtime_TypeCast__IsInstanceOfClass (pTargetType=..., obj=...) at /_/src/runtime/src/coreclr/nativeaot/Runtime.Base/src/System/Runtime/TypeCast.cs:192
+#1  S_P_CoreLib_System_Threading_Tasks_Task__AddTaskContinuationComplex (this=..., tc=..., addBeforeOthers=...) at /_/src/runtime/src/libraries/System.Private.CoreLib/src/System/Threading/Tasks/Task.cs:4548
+#2  S_P_CoreLib_System_Threading_Tasks_Task__UnsafeSetContinuationForAwait (this=..., stateMachineBox=..., continueOnCapturedContext=...) at /_/src/runtime/src/libraries/System.Private.CoreLib/src/System/Threading/Tasks/Task.cs:2591
+#3  S_P_CoreLib_System_Runtime_CompilerServices_AsyncTaskMethodBuilder_1<MySqlConnector_MySqlConnector_Protocol_PayloadData>__AwaitUnsafeOnCompleted_1<S_P_CoreLib_System_Runtime_CompilerServices_ConfiguredValueTaskAwaitable_1_ConfiguredValueTaskAwaiter<S_P_CoreLib_System_ArraySegment_1<UInt8>>> (awaiter=..., box=...) at /_/src/runtime/src/libraries/System.Private.CoreLib/src/System/Runtime/CompilerServices/AsyncTaskMethodBuilderT.cs:106
+#4  MySqlConnector_MySqlConnector_Core_ServerSession__ReceiveReplyAsync_d__120__MoveNext (this=...) at /_/src/MySqlConnector/Core/ServerSession.cs:1174
+#5  S_P_CoreLib_System_Runtime_CompilerServices_AsyncMethodBuilderCore__Start<MySqlConnector_MySqlConnector_Core_ServerSession__ReceiveReplyAsync_d__120> (stateMachine=...) at /_/src/runtime/src/libraries/System.Private.CoreLib/src/System/Runtime/CompilerServices/AsyncMethodBuilderCore.cs:38
+#6  MySqlConnector_MySqlConnector_Core_ServerSession__ReceiveReplyAsync () at /_/src/MySqlConnector/Core/ServerSession.cs:922
+#7  MySqlConnector_MySqlConnector_Core_ServerSession__TryPingAsync_d__117__MoveNext (this=...) at /_/src/MySqlConnector/Core/ServerSession.cs:1126
+#8  S_P_CoreLib_System_Runtime_CompilerServices_AsyncMethodBuilderCore__Start<MySqlConnector_MySqlConnector_Core_ServerSession__TryPingAsync_d__117> (stateMachine=...) at /_/src/runtime/src/libraries/System.Private.CoreLib/src/System/Runtime/CompilerServices/AsyncMethodBuilderCore.cs:38
+#9  MySqlConnector_MySqlConnector_Core_ServerSession__TryPingAsync () at /_/src/MySqlConnector/Core/ServerSession.cs:922
+#10 MySqlConnector_MySqlConnector_MySqlConnection__PingAsync_d__27__MoveNext (this=...) at /_/src/MySqlConnector/MySqlConnection.cs:506
+#11 S_P_CoreLib_System_Runtime_CompilerServices_AsyncMethodBuilderCore__Start<MySqlConnector_MySqlConnector_MySqlConnection__PingAsync_d__27> (stateMachine=...) at /_/src/runtime/src/libraries/System.Private.CoreLib/src/System/Runtime/CompilerServices/AsyncMethodBuilderCore.cs:38
+#12 MySqlConnector_MySqlConnector_MySqlConnection__PingAsync_0 () at /_/src/MySqlConnector/MySqlConnection.cs:498
+#13 MySqlConnector_MySqlConnector_MySqlConnection__PingAsync (this=..., cancellationToken=...) at /_/src/MySqlConnector/MySqlConnection.cs:498
+#14 __MoveNext (this=...) at /home/ahfu/code/github.com/ahfuzhang/QiWa.framework/src/Mysql/DbConnection.cs:128
