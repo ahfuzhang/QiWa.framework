@@ -42,7 +42,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
     internal readonly string _connectionString;
     private readonly int _limit;
     private readonly Channel<DbConnection<TConn, TCmd, TReader>> _channel;
-    private int _count;
+    private long _count;
 
     internal readonly Func<TConn> _rawConnectionFactory;
 
@@ -91,6 +91,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
         {
             throw new Exception("impossible error");
         }
+        Interlocked.Increment(ref pool._count);
         return (pool, default);
     }
 #pragma warning restore CA1000
@@ -105,48 +106,56 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
     public async ValueTask<(DbConnection<TConn, TCmd, TReader>?, Error)> GetAsync(CancellationToken ct = default)
     {
         // Fast path: idle connection already available.
-        Error err;
+        // Error err = default;
         do
         {
             if (!_channel.Reader.TryRead(out var conn))
             {
                 break;
             }
-            if (!conn.IsInUse())
+            if (conn.IsInUse())
             {
-                Int64 now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                if (now - conn.lastUseTimestamp > maxIdleSeconds)
-                {
-                    // AOT 版本总是发生崩溃，因为 IDle 的连接一定不能再使用了。
-                    // 怀疑是 AOT + MysqlConnector 共同引发的问题
-                    // 该问题修复起来太困难了，因此直接丢失 Idel 的连接。
-
-                    /*
-                    err = await conn.PingAsync(ct).ConfigureAwait(false);
-                    if (err.Err())
-                    {
-                        conn.CloseAfterDone();
-                        Interlocked.Decrement(ref _count);
-                        // todo: 如何更好的打日志
-                        Console.WriteLine($"{{\"code\":{err.Code},\"message\":\"Idle and ping fail, {err.Message}\"}}");
-                        continue;
-                    }
-                    Console.WriteLine($"{{\"message\":\"ping success, ts={conn.lastUseTimestamp}\"}}");
-                    */
-                    conn.CloseAfterDone();
-                    continue;
-                    // 为了解决崩溃问题：只要连接变成 Idle，就丢弃
-                }
-                conn.lastUseTimestamp = now;  // 更新最后使用时间，便于判断 Idle 太长时间的连接
-                return (conn, default);
+                // 如果某个 conn 还在干活，应该丢弃这个 conn
+                conn.CloseAfterDone();
+                Interlocked.Decrement(ref _count);
+                continue;
             }
-            // 如果某个 conn 还在干活，应该丢弃这个 conn
-            conn.CloseAfterDone();
-            Interlocked.Decrement(ref _count);
+            Int64 now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (now - conn.lastUseTimestamp > maxIdleSeconds || !conn._rawConn.IsOpen())
+            {
+                // 2026-07-24:
+                // AOT 版本总是发生崩溃，因为 IDle 的连接一定不能再使用了。
+                // 怀疑是 AOT + MysqlConnector 共同引发的问题
+                // 该问题修复起来太困难了，因此直接丢失 Idel 的连接。
+
+                // 2026-07-25:
+                // 进一步发现 Connection 对象的 State 会变成非 System.Data.ConnectionState.Open
+                // 导致 MysqlCommand 抛出异常 System.InvalidOperationException
+
+                /*
+                err = await conn.PingAsync(ct).ConfigureAwait(false);
+                if (err.Err())
+                {
+                    conn.CloseAfterDone();
+                    Interlocked.Decrement(ref _count);
+                    // todo: 如何更好的打日志
+                    Console.WriteLine($"{{\"code\":{err.Code},\"message\":\"Idle and ping fail, {err.Message}\"}}");
+                    continue;
+                }
+                Console.WriteLine($"{{\"message\":\"ping success, ts={conn.lastUseTimestamp}\"}}");
+                */
+                conn.CloseAfterDone();
+                Interlocked.Decrement(ref _count);
+                Console.WriteLine($"{{\"message\":\"Close Idle connection\"}}");
+                continue;
+                // 为了解决崩溃问题：只要连接变成 Idle，就丢弃
+            }
+            conn.lastUseTimestamp = now;  // 更新最后使用时间，便于判断 Idle 太长时间的连接
+            return (conn, default);
         } while (true);
 
         // Try to grow the pool: claim a creation slot first, create only if under limit.
-        int count = Interlocked.Increment(ref _count);
+        long count = Interlocked.Read(ref _count);
         if (count >= _limit)
         {
             DbConnection<TConn, TCmd, TReader> conn;
@@ -156,9 +165,10 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
             }
             catch (OperationCanceledException)
             {
+                // Interlocked.Decrement(ref _count);
                 return (null, Error.WithLoc(1, "[OperationCanceledException]DbConnectionPool.GetAsync: timed out waiting for a free connection"));
             }
-            if (!conn.IsInUse())
+            if (!conn.IsInUse() && conn._rawConn.IsOpen())
             {
                 return (conn, default);
             }

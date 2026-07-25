@@ -34,6 +34,16 @@ public sealed class MySqlConnectionWrapper : IRawConnection<MySqlCommandWrapper,
 
     /// <inheritdoc/>
     public void Dispose() => _conn.Dispose();
+
+    public bool IsOpen()
+    {
+        return _conn.State == System.Data.ConnectionState.Open;
+    }
+
+    // public System.Data.ConnectionState State()
+    // {
+    //     return _conn.State;
+    // }
 }
 
 /// <summary>

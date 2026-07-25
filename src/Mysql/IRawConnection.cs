@@ -27,4 +27,10 @@ public interface IRawConnection<TCmd, TReader> : IDisposable
 
     /// <summary>Creates a new command for this connection.</summary>
     TCmd CreateCommand();
+
+    /// <summary>
+    /// 连接是否处于打开状态
+    /// </summary>
+    /// <returns></returns>
+    bool IsOpen();
 }

@@ -16,7 +16,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
     where TReader : class, IRawReader
 {
     private readonly DbConnectionPool<TConn, TCmd, TReader> _pool;
-    private TConn _rawConn;
+    internal TConn _rawConn;
     private readonly Dictionary<string, TCmd> _preparedStatements = new();
     private long _inUse = 0;
     private bool _disableReuse;  // 当出现异常时，不再重用
@@ -202,6 +202,12 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
             cmd.Dispose();
             _disableReuse = true;  // 一个连接长期不用，就会出现 Broken pipe
             return (null, Error.WithLoc((int)ErrorCodes.PrepareIOExceptionError, $"[System.IO.IOException]Broken pipe, ex={exIO.Message}"));
+        }
+        catch (System.InvalidOperationException exInvalid)
+        {
+            cmd.Dispose();
+            _disableReuse = true;
+            return (null, Error.WithLoc((int)ErrorCodes.PrepareUnknownExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {

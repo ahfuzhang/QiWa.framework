@@ -1,3 +1,6 @@
+* 2026-07-25: v0.9.1
+  * -bug fix:
+    - mysql 连接池，取得一个连接的时候，可能 connection.state 不是 open 状态，
 * 2026-07-24:  v0.9.0
   - bug fix:
     - 使用库 LibDeflate 代替 dotnet 自带的流式 gzip 库

@@ -9,6 +9,9 @@ using QiWa.Mysql;
 /// </summary>
 internal sealed class FakeRawConnection : IRawConnection<FakeRawCommand, FakeRawReader>
 {
+    /// <summary>Tracks whether the fake connection is currently open.</summary>
+    private bool _isOpen;
+
     /// <summary>Exception thrown by OpenAsync, or null to succeed.</summary>
     public Exception? OpenException { get; set; }
 
@@ -30,6 +33,7 @@ internal sealed class FakeRawConnection : IRawConnection<FakeRawCommand, FakeRaw
             throw OpenException;
         }
         WasOpened = true;
+        _isOpen = true;
         return Task.CompletedTask;
     }
 
@@ -45,14 +49,26 @@ internal sealed class FakeRawConnection : IRawConnection<FakeRawCommand, FakeRaw
     public Task CloseAsync()
     {
         WasClosed = true;
+        _isOpen = false;
         return Task.CompletedTask;
     }
 
-    public void Close() => WasClosed = true;
+    public void Close()
+    {
+        WasClosed = true;
+        _isOpen = false;
+    }
 
     public FakeRawCommand CreateCommand() => Command;
 
-    public void Dispose() => WasDisposed = true;
+    /// <summary>Reports the fake connection state required by connection-pool reuse tests.</summary>
+    public bool IsOpen() => _isOpen;
+
+    public void Dispose()
+    {
+        WasDisposed = true;
+        _isOpen = false;
+    }
 }
 
 /// <summary>
