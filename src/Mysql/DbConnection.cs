@@ -121,6 +121,11 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         return (conn, default);
     }
 
+    internal long IdleSeconds()
+    {
+        return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - this.lastUseTimestamp;
+    }
+
     internal static async ValueTask<Error> PingAsync(TConn conn, CancellationToken ct)
     {
         try
@@ -184,6 +189,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         }
         try
         {
+            // AOT 版本在此处发生无法捕获的异常：Unable to write data to the transport connection: Broken pipe.
             await cmd.PrepareAsync(ct).ConfigureAwait(false);
         }
         catch (MySqlException ex)
@@ -235,7 +241,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         {
             Interlocked.Exchange(ref _inUse, 0);
         });
-        var (cmd, prepErr) = await GetOrPrepareAsync(sql, parameters, ct).ConfigureAwait(true);
+        var (cmd, prepErr) = await GetOrPrepareAsync(sql, parameters, ct).ConfigureAwait(false);
         if (prepErr.Err())
         {
             return (0, 0, prepErr);
@@ -305,7 +311,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         {
             Interlocked.Exchange(ref _inUse, 0);
         });
-        var (cmd, prepErr) = await GetOrPrepareAsync(sql, parameters, ct).ConfigureAwait(true);
+        var (cmd, prepErr) = await GetOrPrepareAsync(sql, parameters, ct).ConfigureAwait(false);  // ConfigureAwait(true); 时，在 AOT 版本发生无法捕获的异常
         if (prepErr.Err())
         {
             return (null, prepErr);
@@ -368,7 +374,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         {
             Interlocked.Exchange(ref _inUse, 0);
         });
-        var (cmd, prepErr) = await GetOrPrepareAsync(sql, parameters, ct).ConfigureAwait(true);
+        var (cmd, prepErr) = await GetOrPrepareAsync(sql, parameters, ct).ConfigureAwait(false);
         if (prepErr.Err())
         {
             return (0, prepErr);
@@ -420,7 +426,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         catch (Exception exUnknown)
         {
             _disableReuse = true;
-            return (0, Error.WithLoc((int)ErrorCodes.ExecuteUnknownExceptionError, $"[IOException]cmd.ExecuteReaderAsync,ex={exUnknown.Message}"));
+            return (0, Error.WithLoc((int)ErrorCodes.ExecuteUnknownExceptionError, $"[Exception]cmd.ExecuteReaderAsync,ex={exUnknown.Message}"));
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using MySqlConnector;
 
 using QiWa.Common;
+using QiWa.ConsoleLogger;
 
 // todo: 压测测试
 // todo: 资源泄露的测试
@@ -147,10 +148,22 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
                 conn.CloseAfterDone();
                 Interlocked.Decrement(ref _count);
                 Console.WriteLine($"{{\"message\":\"Close Idle connection\"}}");
+                QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
+                    Field.String("message"u8, "close idle connection"),
+                    Field.Int64("idel_seconds"u8, conn.IdleSeconds()),
+                    Field.Int64("_count"u8, _count),
+                    Field.Bool("state"u8, conn._rawConn.IsOpen())
+                );
                 continue;
                 // 为了解决崩溃问题：只要连接变成 Idle，就丢弃
             }
             conn.lastUseTimestamp = now;  // 更新最后使用时间，便于判断 Idle 太长时间的连接
+            QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
+                Field.String("message"u8, "get connection from channel"),
+                Field.Int64("idel_seconds"u8, conn.IdleSeconds()),
+                Field.Int64("_count"u8, _count),
+                Field.Bool("state"u8, conn._rawConn.IsOpen())
+            );
             return (conn, default);
         } while (true);
 
@@ -158,6 +171,11 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
         long count = Interlocked.Read(ref _count);
         if (count >= _limit)
         {
+            QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
+                Field.String("message"u8, "count >= _limit"),
+                Field.Int64("_count"u8, _count),
+                Field.Int64("limit"u8, _limit)
+            );
             DbConnection<TConn, TCmd, TReader> conn;
             try
             {
@@ -184,6 +202,12 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
         }
         Interlocked.Increment(ref _count);
         Console.WriteLine("{\"message\":\"create a new connection\"}");
+        QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
+                Field.String("message"u8, "create a new connection"),
+                Field.Int64("idel_seconds"u8, newConn!.IdleSeconds()),
+                Field.Int64("_count"u8, _count),
+                Field.Bool("state"u8, newConn!._rawConn.IsOpen())
+            );
         return (newConn, default);
     }
 
