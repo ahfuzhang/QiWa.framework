@@ -96,6 +96,8 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         }
         catch (MySqlException ex)
         {
+            // 当连接池耗尽时，此处抛出的异常为:
+            //   Connect Timeout expired. All pooled connections are in use.
             await rawConn.CloseAsync().ConfigureAwait(true);
             return (null, Error.WithLoc((int)ErrorCodes.CreateConnectionMysqlExceptionError, "[MySqlException]OpenAsync error: " + ex.Message));
         }

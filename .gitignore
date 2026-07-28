@@ -5,3 +5,4 @@
 /.claude/
 /doc/prompt.log
 .DS_Store
+cmd.sh

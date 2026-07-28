@@ -44,8 +44,12 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
     private readonly int _limit;
     private readonly Channel<DbConnection<TConn, TCmd, TReader>> _channel;
     private long _count;
+    private readonly SemaphoreSlim _mutex = new(1, 1);
 
     internal readonly Func<TConn> _rawConnectionFactory;
+
+    /// <summary>当前连接池中已创建（尚未销毁）的连接数量，供测试验证连接数上限使用。</summary>
+    internal long Count => Interlocked.Read(ref _count);
 
     private DbConnectionPool(string connectionString, int limit, Func<TConn> rawConnectionFactory)
     {
@@ -110,20 +114,20 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
         // Error err = default;
         do
         {
-            if (!_channel.Reader.TryRead(out var conn))
+            if (!_channel.Reader.TryRead(out var connExisted))
             {
                 break;
             }
-            if (conn.IsInUse())
+            if (connExisted.IsInUse())
             {
                 // 如果某个 conn 还在干活，应该丢弃这个 conn
-                conn._disableReuse = true;
-                conn.CloseAfterDone();
+                connExisted._disableReuse = true;
+                connExisted.CloseAfterDone();
                 Interlocked.Decrement(ref _count);
                 continue;
             }
             Int64 now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            if (now - conn.lastUseTimestamp > maxIdleSeconds || !conn._rawConn.IsOpen())
+            if (now - connExisted.lastUseTimestamp > maxIdleSeconds || !connExisted._rawConn.IsOpen())
             {
                 // 2026-07-24:
                 // AOT 版本总是发生崩溃，因为 IDle 的连接一定不能再使用了。
@@ -146,40 +150,79 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
                 }
                 Console.WriteLine($"{{\"message\":\"ping success, ts={conn.lastUseTimestamp}\"}}");
                 */
-                conn._disableReuse = true;
-                conn.CloseAfterDone();
-                Interlocked.Decrement(ref _count);
-                Console.WriteLine($"{{\"message\":\"Close Idle connection\"}}");
-                // todo: 下面的代码导致段错误崩溃，且查不到日志
+                connExisted._disableReuse = true;
+                //
                 QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
                     Field.String("message"u8, "close idle connection"),
-                    Field.Int64("idel_seconds"u8, conn.IdleSeconds()),
+                    Field.Int64("idel_seconds"u8, connExisted.IdleSeconds()),
                     Field.Int64("_count"u8, _count),
-                    Field.Bool("state"u8, conn._rawConn.IsOpen())
+                    Field.Bool("state"u8, connExisted._rawConn.IsOpen())
                 );
+                connExisted.CloseAfterDone();
+                Interlocked.Decrement(ref _count);
+                Console.WriteLine($"{{\"message\":\"Close Idle connection\"}}");
                 continue;
                 // 为了解决崩溃问题：只要连接变成 Idle，就丢弃
             }
-            conn.lastUseTimestamp = now;  // 更新最后使用时间，便于判断 Idle 太长时间的连接
+            connExisted.lastUseTimestamp = now;  // 更新最后使用时间，便于判断 Idle 太长时间的连接
             QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
                 Field.String("message"u8, "get connection from channel"),
-                Field.Int64("idel_seconds"u8, conn.IdleSeconds()),
+                Field.Int64("idel_seconds"u8, connExisted.IdleSeconds()),
                 Field.Int64("_count"u8, _count),
-                Field.Bool("state"u8, conn._rawConn.IsOpen())
+                Field.Bool("state"u8, connExisted._rawConn.IsOpen())
             );
-            return (conn, default);
+            return (connExisted, default);
         } while (true);
 
         // Try to grow the pool: claim a creation slot first, create only if under limit.
         long count = Interlocked.Read(ref _count);
-        if (count >= _limit)
+        DbConnection<TConn, TCmd, TReader>? newConn;
+        Error err;
+        while (count < _limit)
         {
-            QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
-                Field.String("message"u8, "count >= _limit"),
-                Field.Int64("_count"u8, _count),
-                Field.Int64("limit"u8, _limit)
-            );
-            DbConnection<TConn, TCmd, TReader> conn;
+            // 注意：并发情况下，很多协程都会走到这里
+            await _mutex.WaitAsync(ct).ConfigureAwait(true);
+            try
+            {
+                count = Interlocked.Read(ref _count);
+                if (count >= _limit)
+                {
+                    break;
+                }
+                // 曾发生的 bug: 因为控制并发的方式不对，导致连接池耗尽，抛出异常:
+                //         Connect Timeout expired. All pooled connections are in use.
+                // 如果因为并发，创建了超过 limit 的对象，则多余的对象在 Put() 时会被释放掉
+                (newConn, err) = await DbConnection<TConn, TCmd, TReader>.OpenAsync(this, ct).ConfigureAwait(false);
+                if (err.Err())
+                {
+                    // 连接池耗尽时，此处返回异常：Code=3306,Message=[MySqlException]OpenAsync error: Connect Timeout expired. All pooled connections are in use.
+                    // 为此：对象池的最大值 _limit 应该比 DSN 中的 `Maximum Pool Size=100` 小 1
+                    return (null, err);
+                }
+                Interlocked.Increment(ref _count);
+                Console.WriteLine("{\"message\":\"create a new connection\"}");
+                QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
+                        Field.String("message"u8, "create a new connection"),
+                        Field.Int64("idel_seconds"u8, newConn!.IdleSeconds()),
+                        Field.Int64("_count"u8, _count),
+                        Field.Bool("state"u8, newConn!._rawConn.IsOpen())
+                    );
+                return (newConn, default);
+            }
+            finally
+            {
+                _mutex.Release();
+            }
+        }
+        // 已经达到了连接池的上限，则只能等待
+        QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
+            Field.String("message"u8, "count >= _limit"),
+            Field.Int64("_count"u8, _count),
+            Field.Int64("limit"u8, _limit)
+        );
+        DbConnection<TConn, TCmd, TReader> conn;
+        while (true)
+        {
             try
             {
                 conn = await _channel.Reader.ReadAsync(ct).ConfigureAwait(true);  // 阻塞等待，直至超时
@@ -197,22 +240,6 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
             conn.CloseAfterDone();
             Interlocked.Decrement(ref _count);
         }
-
-        // 如果因为并发，创建了超过 limit 的对象，则多余的对象在 Put() 时会被释放掉
-        var (newConn, err1) = await DbConnection<TConn, TCmd, TReader>.OpenAsync(this, ct).ConfigureAwait(false);
-        if (err1.Err())
-        {
-            return (null, err1);
-        }
-        Interlocked.Increment(ref _count);
-        Console.WriteLine("{\"message\":\"create a new connection\"}");
-        QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
-                Field.String("message"u8, "create a new connection"),
-                Field.Int64("idel_seconds"u8, newConn!.IdleSeconds()),
-                Field.Int64("_count"u8, _count),
-                Field.Bool("state"u8, newConn!._rawConn.IsOpen())
-            );
-        return (newConn, default);
     }
 
     // 每个 DbConnection 对象的 Dispose() 方法会调用 Put() 来放回连接池

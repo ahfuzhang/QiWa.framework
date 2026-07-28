@@ -10,7 +10,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -31,7 +31,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -54,7 +54,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -79,7 +79,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -106,7 +106,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -135,7 +135,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -166,7 +166,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -199,7 +199,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -234,7 +234,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -271,7 +271,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -310,7 +310,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -351,7 +351,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -394,7 +394,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -439,7 +439,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -486,7 +486,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -535,7 +535,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -586,7 +586,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -639,7 +639,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -694,7 +694,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
@@ -751,7 +751,7 @@ public partial class TaskLogger
     {
         TaskLogger l = Logger.Get();
         l.prefix.Extend(this.prefix.Length);
-        this.prefix.Data.CopyTo(l.prefix.Data, 0);
+        Array.Copy(this.prefix.Data, l.prefix.Data, this.prefix.Length);
         l.prefix.Length = this.prefix.Length;
         if (l.prefix.Length == 0)
         {
