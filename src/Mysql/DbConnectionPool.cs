@@ -117,6 +117,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
             if (conn.IsInUse())
             {
                 // 如果某个 conn 还在干活，应该丢弃这个 conn
+                conn._disableReuse = true;
                 conn.CloseAfterDone();
                 Interlocked.Decrement(ref _count);
                 continue;
@@ -145,9 +146,11 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
                 }
                 Console.WriteLine($"{{\"message\":\"ping success, ts={conn.lastUseTimestamp}\"}}");
                 */
+                conn._disableReuse = true;
                 conn.CloseAfterDone();
                 Interlocked.Decrement(ref _count);
                 Console.WriteLine($"{{\"message\":\"Close Idle connection\"}}");
+                // todo: 下面的代码导致段错误崩溃，且查不到日志
                 QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
                     Field.String("message"u8, "close idle connection"),
                     Field.Int64("idel_seconds"u8, conn.IdleSeconds()),
@@ -190,6 +193,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
             {
                 return (conn, default);
             }
+            conn._disableReuse = true;
             conn.CloseAfterDone();
             Interlocked.Decrement(ref _count);
         }
@@ -214,9 +218,16 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
     // 每个 DbConnection 对象的 Dispose() 方法会调用 Put() 来放回连接池
     internal void Put(DbConnection<TConn, TCmd, TReader> conn)
     {
+        QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
+                Field.String("message"u8, "put back to connection pool"),
+                Field.Int64("idel_seconds"u8, conn.IdleSeconds()),
+                Field.Int64("_count"u8, _count),
+                Field.Bool("state"u8, conn._rawConn.IsOpen())
+            );
         if (!_channel.Writer.TryWrite(conn))
         {
             // 如果不小心创建数量超标，归还的时候关闭这个对象
+            conn._disableReuse = true;
             conn.CloseAfterDone();
         }
     }

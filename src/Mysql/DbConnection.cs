@@ -4,6 +4,7 @@ namespace QiWa.Mysql;
 using MySqlConnector;
 
 using QiWa.Common;
+using QiWa.ConsoleLogger;
 
 /// <summary>
 /// A pooled database connection that caches prepared statements keyed by SQL text.
@@ -19,7 +20,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
     internal TConn _rawConn;
     private readonly Dictionary<string, TCmd> _preparedStatements = new();
     private long _inUse = 0;
-    private bool _disableReuse;  // 当出现异常时，不再重用
+    internal bool _disableReuse;  // 当出现异常时，不再重用
     internal Int64 lastUseTimestamp = 0;
 
     internal DbConnection(DbConnectionPool<TConn, TCmd, TReader> pool, TConn rawConn)
@@ -161,6 +162,12 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
     /// </summary>
     public void Dispose()
     {
+        QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
+            Field.String("message"u8, "conn.Dispose(), back to pool"),
+            Field.Int64("idel_seconds"u8, this.IdleSeconds()),
+            Field.Bool("_disableReuse"u8, _disableReuse),
+            Field.Bool("state"u8, this._rawConn.IsOpen())
+        );
         if (!_disableReuse)
         {
             _pool.Put(this);
