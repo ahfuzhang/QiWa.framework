@@ -1,7 +1,7 @@
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace QiWa.Mysql;
 
-enum ErrorCodes : Int32
+public enum ErrorCodes : Int32
 {
     Success = 0,
     CreateConnectionMysqlExceptionError = 3306,
@@ -20,4 +20,20 @@ enum ErrorCodes : Int32
     ExecuteTimeoutError = 3319,
     ExecuteIOExceptionError = 3320,
     ExecuteUnknownExceptionError = 3321,
+    InvalidOperationExceptionError = 3322,
+}
+
+public static class ErrorCodesHelper
+{
+    public static bool CanRetry(int errorCode)
+    {
+        return errorCode switch
+        {
+            (int)ErrorCodes.PingIOExceptionError or
+            (int)ErrorCodes.PrepareIOExceptionError or
+            (int)ErrorCodes.ExecuteIOExceptionError or
+            (int)ErrorCodes.InvalidOperationExceptionError => true,
+            _ => false,
+        };
+    }
 }

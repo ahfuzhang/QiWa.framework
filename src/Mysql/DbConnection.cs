@@ -96,6 +96,11 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
             if (!rawConn.IsOpen())
             {
                 // see: github.com/mysql-net/MySqlConnector/src/MySqlConnector/MySqlConnection.cs
+                /*
+                  这里曾经发生了神奇的事情：linux + AOT 编译的情况下：
+                  长期 Idle 的连接，先调用 OpenAsync() 再调用 PingAsync()，其 State 居然不是 Open 状态。
+                  因此加入对 State 的检查，以避免抛出 InvalidOperationException
+                */
                 await rawConn.ResetConnectionAsync(ct).ConfigureAwait(false);
             }
         }
@@ -114,6 +119,10 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         catch (IOException exIO)
         {
             return (null, Error.WithLoc((int)ErrorCodes.CreateConnectionIOExceptionError, $"[IOException]OpenAsync io exception, message={exIO.Message}"));
+        }
+        catch (InvalidOperationException exInvalid)
+        {
+            return (null, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]OpenAsync exception, message={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
@@ -151,6 +160,10 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         catch (System.IO.IOException exIO)
         {
             return Error.WithLoc((int)ErrorCodes.PingIOExceptionError, $"[System.IO.IOException], message={exIO.Message}");
+        }
+        catch (InvalidOperationException exInvalid)
+        {
+            return Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]message={exInvalid.Message}");
         }
         catch (Exception exUnknown)
         {
@@ -212,6 +225,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         try
         {
             // AOT 版本在此处发生无法捕获的异常：Unable to write data to the transport connection: Broken pipe.
+            // 因此：在从连接池获取对象时就加上周全的处理，保障程序逻辑走到此处时，Connection 对象一定可用
             await cmd.PrepareAsync(ct).ConfigureAwait(false);
         }
         catch (MySqlException ex)
@@ -235,7 +249,7 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         {
             cmd.Dispose();
             _disableReuse = true;
-            return (null, Error.WithLoc((int)ErrorCodes.PrepareUnknownExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
+            return (null, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
@@ -298,6 +312,11 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         {
             _disableReuse = true;
             return (0, 0, Error.WithLoc((int)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteNonQueryAsync,ex={exIO.Message}"));
+        }
+        catch (System.InvalidOperationException exInvalid)
+        {
+            _disableReuse = true;
+            return (0, 0, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
@@ -368,6 +387,11 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         {
             _disableReuse = true;
             return (null, Error.WithLoc((int)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteScalarAsync,ex={exIO.Message}"));
+        }
+        catch (System.InvalidOperationException exInvalid)
+        {
+            _disableReuse = true;
+            return (null, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
@@ -444,6 +468,11 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         {
             _disableReuse = true;
             return (0, Error.WithLoc((int)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteReaderAsync,ex={exIO.Message}"));
+        }
+        catch (System.InvalidOperationException exInvalid)
+        {
+            _disableReuse = true;
+            return (0, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
