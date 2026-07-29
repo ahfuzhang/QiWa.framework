@@ -93,6 +93,11 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         try
         {
             await rawConn.OpenAsync(ct).ConfigureAwait(false);
+            if (!rawConn.IsOpen())
+            {
+                // see: github.com/mysql-net/MySqlConnector/src/MySqlConnector/MySqlConnection.cs
+                await rawConn.ResetConnectionAsync(ct).ConfigureAwait(false);
+            }
         }
         catch (MySqlException ex)
         {
@@ -158,6 +163,14 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
     {
         return PingAsync(_rawConn, ct);
     }
+
+    // /// <summary>
+    // /// 当应用层发现问题时，应该调用这个方法
+    // /// </summary>
+    // public void DisableReuse()
+    // {
+    //     _disableReuse = true;
+    // }
 
     /// <summary>
     /// Returns this connection to the pool. Called automatically when used inside a using block.

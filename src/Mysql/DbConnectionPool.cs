@@ -35,8 +35,7 @@ public sealed record SqlParam
 /// because C# requires explicit interface declaration (no structural/duck typing).
 /// The wrapper classes serve as thin adapters.
 /// </summary>
-public sealed class DbConnectionPool<TConn, TCmd, TReader>
-    where TConn : class, IRawConnection<TCmd, TReader>
+public sealed class DbConnectionPool<TConn, TCmd, TReader> : IDisposable where TConn : class, IRawConnection<TCmd, TReader>
     where TCmd : class, IRawCommand<TReader>
     where TReader : class, IRawReader
 {
@@ -108,6 +107,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
     /// If the pool is empty and below <c>limit</c>, a new connection is created.
     /// Otherwise the call waits until <paramref name="ct"/> is cancelled.
     /// </summary>
+#pragma warning disable MA0051
     public async ValueTask<(DbConnection<TConn, TCmd, TReader>?, Error)> GetAsync(CancellationToken ct = default)
     {
         // Fast path: idle connection already available.
@@ -138,18 +138,6 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
                 // 进一步发现 Connection 对象的 State 会变成非 System.Data.ConnectionState.Open
                 // 导致 MysqlCommand 抛出异常 System.InvalidOperationException
 
-                /*
-                err = await conn.PingAsync(ct).ConfigureAwait(false);
-                if (err.Err())
-                {
-                    conn.CloseAfterDone();
-                    Interlocked.Decrement(ref _count);
-                    // todo: 如何更好的打日志
-                    Console.WriteLine($"{{\"code\":{err.Code},\"message\":\"Idle and ping fail, {err.Message}\"}}");
-                    continue;
-                }
-                Console.WriteLine($"{{\"message\":\"ping success, ts={conn.lastUseTimestamp}\"}}");
-                */
                 connExisted._disableReuse = true;
                 //
                 QiWa.ConsoleLogger.ThreadLocalLogger.Current.Debug(
@@ -207,6 +195,12 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
                         Field.Int64("_count"u8, _count),
                         Field.Bool("state"u8, newConn!._rawConn.IsOpen())
                     );
+                // 2026-07-29: 神奇的事情在这里发生了
+                //   linux + AOT 编译版本中，
+                //   长时间 Idle 后，
+                //   刚刚 Open 的连接，其 newConn!._rawConn.IsOpen() 为 false
+                //   导致上层应用使用连接查询时出现错误:
+                //       Code=3317,Message=[InvalidOperationException]ex=Connection must be Open; current state is Broken
                 return (newConn, default);
             }
             finally
@@ -241,6 +235,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
             Interlocked.Decrement(ref _count);
         }
     }
+#pragma warning restore MA0051
 
     // 每个 DbConnection 对象的 Dispose() 方法会调用 Put() 来放回连接池
     internal void Put(DbConnection<TConn, TCmd, TReader> conn)
@@ -257,6 +252,13 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader>
             conn._disableReuse = true;
             conn.CloseAfterDone();
         }
+    }
+
+    public void Dispose()
+    {
+        _mutex.Dispose();
+        //throw new NotImplementedException();
+        Close();
     }
 
     // public static Task<(DbConnectionPool<MySqlConnectionWrapper, MySqlCommandWrapper, MySqlReaderWrapper>?, Error)>

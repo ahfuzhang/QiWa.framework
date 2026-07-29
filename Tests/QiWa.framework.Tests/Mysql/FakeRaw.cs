@@ -18,10 +18,14 @@ internal sealed class FakeRawConnection : IRawConnection<FakeRawCommand, FakeRaw
     /// <summary>Exception thrown by PingAsync, or null to succeed.</summary>
     public Exception? PingException { get; set; }
 
+    /// <summary>Exception thrown by ResetConnectionAsync, or null to succeed.</summary>
+    public Exception? ResetConnectionException { get; set; }
+
     public string ConnectionString { get; set; } = "";
     public bool WasOpened { get; set; }
     public bool WasClosed { get; set; }
     public bool WasDisposed { get; set; }
+    public bool WasReset { get; set; }
 
     /// <summary>The command returned by CreateCommand(); shared so tests can configure it.</summary>
     public FakeRawCommand Command { get; } = new FakeRawCommand();
@@ -63,6 +67,17 @@ internal sealed class FakeRawConnection : IRawConnection<FakeRawCommand, FakeRaw
 
     /// <summary>Reports the fake connection state required by connection-pool reuse tests.</summary>
     public bool IsOpen() => _isOpen;
+
+    public ValueTask ResetConnectionAsync(CancellationToken cancellationToken)
+    {
+        if (ResetConnectionException != null)
+        {
+            throw ResetConnectionException;
+        }
+        WasReset = true;
+        _isOpen = true;
+        return ValueTask.CompletedTask;
+    }
 
     public void Dispose()
     {

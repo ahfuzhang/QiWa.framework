@@ -33,4 +33,10 @@ public interface IRawConnection<TCmd, TReader> : IDisposable
     /// </summary>
     /// <returns></returns>
     bool IsOpen();
+
+    /// <summary>
+    /// Resets the connection's session state so it can be safely reused from a pool.
+    /// see: github.com/mysql-net/MySqlConnector/src/MySqlConnector/MySqlConnection.cs
+    /// </summary>
+    ValueTask ResetConnectionAsync(CancellationToken cancellationToken);
 }

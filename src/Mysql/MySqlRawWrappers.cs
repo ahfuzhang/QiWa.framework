@@ -40,10 +40,10 @@ public sealed class MySqlConnectionWrapper : IRawConnection<MySqlCommandWrapper,
         return _conn.State == System.Data.ConnectionState.Open;
     }
 
-    // public System.Data.ConnectionState State()
-    // {
-    //     return _conn.State;
-    // }
+    /// <inheritdoc/>
+    public ValueTask ResetConnectionAsync(CancellationToken cancellationToken) =>
+        _conn.ResetConnectionAsync(cancellationToken);
+
 }
 
 /// <summary>
