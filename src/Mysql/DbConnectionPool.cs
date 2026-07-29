@@ -223,8 +223,7 @@ public sealed class DbConnectionPool<TConn, TCmd, TReader> : IDisposable where T
             }
             catch (OperationCanceledException)
             {
-                // Interlocked.Decrement(ref _count);
-                return (null, Error.WithLoc(1, "[OperationCanceledException]DbConnectionPool.GetAsync: timed out waiting for a free connection"));
+                return (null, Error.WithLoc((uint)ErrorCodes.WaitTimeoutError, "[OperationCanceledException]DbConnectionPool.GetAsync: timed out waiting for a free connection"));
             }
             if (!conn.IsInUse() && conn._rawConn.IsOpen())
             {

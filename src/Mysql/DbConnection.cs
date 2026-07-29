@@ -109,24 +109,24 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
             // 当连接池耗尽时，此处抛出的异常为:
             //   Connect Timeout expired. All pooled connections are in use.
             await rawConn.CloseAsync().ConfigureAwait(true);
-            return (null, Error.WithLoc((int)ErrorCodes.CreateConnectionMysqlExceptionError, "[MySqlException]OpenAsync error: " + ex.Message));
+            return (null, Error.WithLoc((uint)ErrorCodes.CreateConnectionMysqlExceptionError, "[MySqlException]OpenAsync error: " + ex.Message));
         }
         catch (OperationCanceledException)
         {
             await rawConn.CloseAsync().ConfigureAwait(true);
-            return (null, Error.WithLoc((int)ErrorCodes.CreateConnectionTimeoutError, "[OperationCanceledException]OpenAsync timeout"));
+            return (null, Error.WithLoc((uint)ErrorCodes.CreateConnectionTimeoutError, "[OperationCanceledException]OpenAsync timeout"));
         }
         catch (IOException exIO)
         {
-            return (null, Error.WithLoc((int)ErrorCodes.CreateConnectionIOExceptionError, $"[IOException]OpenAsync io exception, message={exIO.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.CreateConnectionIOExceptionError, $"[IOException]OpenAsync io exception, message={exIO.Message}"));
         }
         catch (InvalidOperationException exInvalid)
         {
-            return (null, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]OpenAsync exception, message={exInvalid.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]OpenAsync exception, message={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
-            return (null, Error.WithLoc((int)ErrorCodes.CreateConnectionUnknownExceptionError, $"[Exception]OpenAsync exception, message={exUnknown.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.CreateConnectionUnknownExceptionError, $"[Exception]OpenAsync exception, message={exUnknown.Message}"));
         }
         Error err = await PingAsync(rawConn, ct).ConfigureAwait(false);
         if (err.Err())
@@ -151,23 +151,23 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         }
         catch (MySqlException ex)
         {
-            return Error.WithLoc((int)ErrorCodes.PingMysqlExceptionError, "[MySqlException]PingAsync error: " + ex.Message);
+            return Error.WithLoc((uint)ErrorCodes.PingMysqlExceptionError, "[MySqlException]PingAsync error: " + ex.Message);
         }
         catch (OperationCanceledException)
         {
-            return Error.WithLoc((int)ErrorCodes.PingTimeoutError, "[OperationCanceledException]PingAsync timeout");
+            return Error.WithLoc((uint)ErrorCodes.PingTimeoutError, "[OperationCanceledException]PingAsync timeout");
         }
         catch (System.IO.IOException exIO)
         {
-            return Error.WithLoc((int)ErrorCodes.PingIOExceptionError, $"[System.IO.IOException], message={exIO.Message}");
+            return Error.WithLoc((uint)ErrorCodes.PingIOExceptionError, $"[System.IO.IOException], message={exIO.Message}");
         }
         catch (InvalidOperationException exInvalid)
         {
-            return Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]message={exInvalid.Message}");
+            return Error.WithLoc((uint)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]message={exInvalid.Message}");
         }
         catch (Exception exUnknown)
         {
-            return Error.WithLoc((int)ErrorCodes.PingUnknownExceptionError, $"[Exception], message={exUnknown.Message}");
+            return Error.WithLoc((uint)ErrorCodes.PingUnknownExceptionError, $"[Exception], message={exUnknown.Message}");
         }
         return default;
     }
@@ -231,31 +231,31 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         catch (MySqlException ex)
         {
             cmd.Dispose();
-            return (null, Error.WithLoc((int)ErrorCodes.PrepareMysqlExceptionError, $"[MySqlException]DbConnection.PrepareAsync: {ex.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.PrepareMysqlExceptionError, $"[MySqlException]DbConnection.PrepareAsync: {ex.Message}"));
         }
         catch (OperationCanceledException)
         {
             cmd.Dispose();
             _disableReuse = true;  // 如果发生超时，则这条连接可能一直在使用之中，所以不再重用这个连接对象
-            return (null, Error.WithLoc((int)ErrorCodes.PrepareTimeoutError, "[OperationCanceledException]cmd.PrepareAsync timeout"));
+            return (null, Error.WithLoc((uint)ErrorCodes.PrepareTimeoutError, "[OperationCanceledException]cmd.PrepareAsync timeout"));
         }
         catch (System.IO.IOException exIO)
         {
             cmd.Dispose();
             _disableReuse = true;  // 一个连接长期不用，就会出现 Broken pipe
-            return (null, Error.WithLoc((int)ErrorCodes.PrepareIOExceptionError, $"[System.IO.IOException]Broken pipe, ex={exIO.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.PrepareIOExceptionError, $"[System.IO.IOException]Broken pipe, ex={exIO.Message}"));
         }
         catch (System.InvalidOperationException exInvalid)
         {
             cmd.Dispose();
             _disableReuse = true;
-            return (null, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
             cmd.Dispose();
             _disableReuse = true;
-            return (null, Error.WithLoc((int)ErrorCodes.PrepareUnknownExceptionError, $"[Exception]ex={exUnknown.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.PrepareUnknownExceptionError, $"[Exception]ex={exUnknown.Message}"));
         }
         _preparedStatements[sql] = cmd;
         return (cmd, default);
@@ -306,22 +306,22 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         catch (OperationCanceledException)
         {
             _disableReuse = true;  // 如果发生超时，则这条连接可能一直在使用之中，所以不再重用这个连接对象
-            return (0, 0, Error.WithLoc((int)ErrorCodes.ExecuteTimeoutError, "[OperationCanceledException]cmd.ExecuteNonQueryAsync timeout"));
+            return (0, 0, Error.WithLoc((uint)ErrorCodes.ExecuteTimeoutError, "[OperationCanceledException]cmd.ExecuteNonQueryAsync timeout"));
         }
         catch (IOException exIO)
         {
             _disableReuse = true;
-            return (0, 0, Error.WithLoc((int)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteNonQueryAsync,ex={exIO.Message}"));
+            return (0, 0, Error.WithLoc((uint)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteNonQueryAsync,ex={exIO.Message}"));
         }
         catch (System.InvalidOperationException exInvalid)
         {
             _disableReuse = true;
-            return (0, 0, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
+            return (0, 0, Error.WithLoc((uint)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
             _disableReuse = true;
-            return (0, 0, Error.WithLoc((int)ErrorCodes.ExecuteUnknownExceptionError, $"[IOException]cmd.ExecuteNonQueryAsync,ex={exUnknown.Message}"));
+            return (0, 0, Error.WithLoc((uint)ErrorCodes.ExecuteUnknownExceptionError, $"[IOException]cmd.ExecuteNonQueryAsync,ex={exUnknown.Message}"));
         }
     }
 
@@ -381,22 +381,22 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         catch (OperationCanceledException)
         {
             _disableReuse = true;  // 如果发生超时，则这条连接可能一直在使用之中，所以不再重用这个连接对象
-            return (null, Error.WithLoc((int)ErrorCodes.ExecuteTimeoutError, "[OperationCanceledException]cmd.ExecuteScalarAsync timeout"));
+            return (null, Error.WithLoc((uint)ErrorCodes.ExecuteTimeoutError, "[OperationCanceledException]cmd.ExecuteScalarAsync timeout"));
         }
         catch (IOException exIO)
         {
             _disableReuse = true;
-            return (null, Error.WithLoc((int)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteScalarAsync,ex={exIO.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteScalarAsync,ex={exIO.Message}"));
         }
         catch (System.InvalidOperationException exInvalid)
         {
             _disableReuse = true;
-            return (null, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
             _disableReuse = true;
-            return (null, Error.WithLoc((int)ErrorCodes.ExecuteUnknownExceptionError, $"[IOException]cmd.ExecuteScalarAsync,ex={exUnknown.Message}"));
+            return (null, Error.WithLoc((uint)ErrorCodes.ExecuteUnknownExceptionError, $"[IOException]cmd.ExecuteScalarAsync,ex={exUnknown.Message}"));
         }
     }
 
@@ -462,22 +462,22 @@ public sealed class DbConnection<TConn, TCmd, TReader> : IDisposable
         catch (OperationCanceledException)
         {
             _disableReuse = true;  // 如果发生超时，则这条连接可能一直在使用之中，所以不再重用这个连接对象
-            return (0, Error.WithLoc((int)ErrorCodes.ExecuteTimeoutError, "[OperationCanceledException]cmd.ExecuteReaderAsync timeout"));
+            return (0, Error.WithLoc((uint)ErrorCodes.ExecuteTimeoutError, "[OperationCanceledException]cmd.ExecuteReaderAsync timeout"));
         }
         catch (IOException exIO)
         {
             _disableReuse = true;
-            return (0, Error.WithLoc((int)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteReaderAsync,ex={exIO.Message}"));
+            return (0, Error.WithLoc((uint)ErrorCodes.ExecuteIOExceptionError, $"[IOException]cmd.ExecuteReaderAsync,ex={exIO.Message}"));
         }
         catch (System.InvalidOperationException exInvalid)
         {
             _disableReuse = true;
-            return (0, Error.WithLoc((int)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
+            return (0, Error.WithLoc((uint)ErrorCodes.InvalidOperationExceptionError, $"[InvalidOperationException]ex={exInvalid.Message}"));
         }
         catch (Exception exUnknown)
         {
             _disableReuse = true;
-            return (0, Error.WithLoc((int)ErrorCodes.ExecuteUnknownExceptionError, $"[Exception]cmd.ExecuteReaderAsync,ex={exUnknown.Message}"));
+            return (0, Error.WithLoc((uint)ErrorCodes.ExecuteUnknownExceptionError, $"[Exception]cmd.ExecuteReaderAsync,ex={exUnknown.Message}"));
         }
     }
 }
