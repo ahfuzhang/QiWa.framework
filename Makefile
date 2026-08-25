@@ -1,11 +1,13 @@
 
 COVERAGE_RAW    = build/coverage-raw
 COVERAGE_REPORT = build/coverage-report
-PACKAGE_ID      = QiWa.framework
-PACKAGE_VERSION ?= 0.9.7
-PACKAGE_OUTPUT  = bin/Release
+#PACKAGE_ID      = QiWa.framework
+#PACKAGE_VERSION ?= 0.9.7
+#PACKAGE_OUTPUT  = bin/Release
 BUILD_CONFIGURATION ?= Debug
-NUGET_PACK_ARGS ?=
+#NUGET_PACK_ARGS ?=
+
+VER=0.9.8
 
 # 对应“运行 make pack 并没有生成 nuget 文件，请解决”：这些命令目标不能和同名目录冲突，否则 make 会跳过真正的构建与打包动作。
 .PHONY: build new test coverage pack push
@@ -56,20 +58,34 @@ coverage_with_mysql:
 	@echo ""
 	@echo "Coverage report: $(COVERAGE_REPORT)/index.html"
 
+# pack:
+# 	# 对应“运行 make pack 并没有生成 nuget 文件，请解决”：改为先构建 Release，再用显式 nuspec 稳定生成 NuGet 包。
+# 	$(MAKE) build BUILD_CONFIGURATION=Release
+# 	nuget pack $(PACKAGE_ID).nuspec \
+# 		-Version $(PACKAGE_VERSION) \
+# 		-OutputDirectory $(PACKAGE_OUTPUT) \
+# 		-NoPackageAnalysis \
+# 		$(NUGET_PACK_ARGS)
+
+# # make push KEY=$(cat app_key.txt)
+# push:
+# 	dotnet nuget push $(PACKAGE_OUTPUT)/$(PACKAGE_ID).$(PACKAGE_VERSION).nupkg \
+# 		--api-key $(KEY) \
+# 		--source https://api.nuget.org/v3/index.json
+
 pack:
-	# 对应“运行 make pack 并没有生成 nuget 文件，请解决”：改为先构建 Release，再用显式 nuspec 稳定生成 NuGet 包。
-	$(MAKE) build BUILD_CONFIGURATION=Release
-	nuget pack $(PACKAGE_ID).nuspec \
-		-Version $(PACKAGE_VERSION) \
-		-OutputDirectory $(PACKAGE_OUTPUT) \
-		-NoPackageAnalysis \
-		$(NUGET_PACK_ARGS)
+	dotnet pack -c Release -p:PackageVersion=$(VER) \
+	-p:EmbedAllSources=true -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
 
 # make push KEY=$(cat app_key.txt)
 push:
-	dotnet nuget push $(PACKAGE_OUTPUT)/$(PACKAGE_ID).$(PACKAGE_VERSION).nupkg \
+	dotnet nuget push bin/Release/QiWa.framework.$(VER).nupkg --skip-duplicate \
 		--api-key $(KEY) \
 		--source https://api.nuget.org/v3/index.json
+	dotnet nuget push bin/Release/QiWa.framework.$(VER).snupkg --skip-duplicate \
+		--api-key $(KEY) \
+		--source https://api.nuget.org/v3/index.json
+
 
 lint:
 	dotnet format whitespace QiWa.framework.csproj --verify-no-changes --verbosity diagnostic  && \

@@ -18,8 +18,6 @@
     <RepositoryUrl>https://github.com/ahfuzhang/QiWa.framework</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/ahfuzhang/QiWa.framework</PackageProjectUrl>
-    <!-- 对应“运行 make pack 并没有生成 nuget 文件，请解决”：NuGet 包只保留显式声明的文件，避免把日志、覆盖率报告和仓库杂项内容误打进包里。 -->
-    <IncludeContentInPack>false</IncludeContentInPack>
 
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -36,9 +34,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" />
-  </ItemGroup>
+  <!-- Multi-targeting 的 outer/cross-targeting 求值不会展开普通 ItemGroup 里的 None 项，
+       所以显式打包 README.md 需要放在 _GetPackageFiles 之前执行的 Target 里才会生效。 -->
+  <Target Name="IncludeReadmeInPack" BeforeTargets="_GetPackageFiles">
+    <ItemGroup>
+      <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <!-- Allow the test project to access internal members (e.g. CreateAsync factory overload) -->
